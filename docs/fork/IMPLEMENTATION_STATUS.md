@@ -25,9 +25,10 @@ Architecture: [audit](ARCHITECTURE.md). Independent review: [log](REVIEW_LOG.md)
 
 ## Evidence and limitations
 
-Phase 1 is implemented and verified with synthetic inputs and rendered UI. The initial
-65 focused checks passed, including eight settings/touchscreen renders. A full final
-suite and refreshed handoff are recorded in [VERIFICATION.md](VERIFICATION.md).
+Phase 1 is implemented and verified with synthetic inputs and rendered UI. The final
+68 focused checks passed, including eight settings/touchscreen renders. The full run
+has 2,891 tests: 2,693 passed, six baseline failures and 192 skipped. The refreshed
+handoff is recorded in [VERIFICATION.md](VERIFICATION.md).
 The debug APK builds with the pinned native cores. The six existing Windows baseline
 failures remain tracked separately; a full-suite failure is not called a clean pass.
 
@@ -53,7 +54,8 @@ Branches: `feature/pokedaisy-ds-enhancements` is the integration baseline;
 targets the user's fork only. No upstream write or merge has been made.
 
 Earlier commits: `28b356f` fixes Windows manual parsing; `159d816` exposes DS X/Y and
-fixes initial held-input lifecycle behavior. Subsequent Phase 1 commits extend that slice.
+fixes initial held-input lifecycle behavior. `6434360` completes Phase 1 profiles,
+routing, touch fallback, actions, tests and documentation.
 
 ## Concrete continuation
 

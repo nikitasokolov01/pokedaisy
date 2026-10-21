@@ -90,7 +90,13 @@ Local evidence: `build/fork-review/phase1-full-tests.log`, `phase1-full-results/
 `phase1-build-tests.log`, `phase1-focused-results/`, `phase1-ui-preview.log`,
 `phase1-ui-hotkeys.log`, `phase1-docs-tests.log`, `phase1-website-build.log`.
 The only app change after the full run was the offline selected-profile label; the
-desktop UI compiled it successfully and the handoff APK rebuild checks Android compilation.
+desktop UI and Android handoff rebuild both compiled it successfully.
+
+Handoff source commit: `6434360a266f400e354b786acee80a1624a4f917`.
+Local APK: `build/fork-review/pokedaisy-phase1-6434360-debug.apk` (37,336,787 bytes).
+SHA-256: `6ad065b50f2adb45341c02d9f9ac64a7a0ab88b3641be60773606115d80b0ae1`.
+The committed-source `:app:assembleDebug` finished successfully; log:
+`build/fork-review/phase1-handoff-build.log`. The APK is ignored, not committed.
 
 ## Windows build command
 
