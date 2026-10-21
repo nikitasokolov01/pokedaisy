@@ -43,6 +43,7 @@ class CompanionKeys {
     private val entries = mutableListOf<Entry>()
     private class StickEntry(var enabled: Boolean, var onStick: (Float, Float) -> Boolean)
     private val sticks = mutableListOf<StickEntry>()
+    val hasStickHandler: Boolean get() = sticks.any { it.enabled }
 
     /** The left stick's position (-1..1 each way, as the pad reports it) to the newest enabled stick handler; false = none
      * wants it, and it steers as the D-pad does. */

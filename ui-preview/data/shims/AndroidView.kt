@@ -1,6 +1,7 @@
 package android.view
 
 class KeyEvent(val action: Int = ACTION_DOWN, val keyCode: Int = 0, val repeatCount: Int = 0) {
+    val deviceId = 0
     companion object {
         fun keyCodeFromString(s: String): Int = s.hashCode() and 0xFFFF
         /** The real name for the constants below (the rebind shots show them), else the number. */
@@ -44,9 +45,15 @@ class KeyEvent(val action: Int = ACTION_DOWN, val keyCode: Int = 0, val repeatCo
 
 /** Joystick motion (Settings' analog L2 / R2 capture): never sent in the preview. */
 class MotionEvent {
+    val source = 0
+    val deviceId = 0
     fun isFromSource(source: Int): Boolean = false
     fun getAxisValue(axis: Int): Float = 0f
     companion object {
+        const val AXIS_X = 0
+        const val AXIS_Y = 1
+        const val AXIS_HAT_X = 15
+        const val AXIS_HAT_Y = 16
         const val AXIS_LTRIGGER = 17
         const val AXIS_RTRIGGER = 18
         const val AXIS_THROTTLE = 19

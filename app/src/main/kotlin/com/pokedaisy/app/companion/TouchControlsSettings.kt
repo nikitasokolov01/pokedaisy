@@ -48,7 +48,11 @@ enum class TouchButton(val label: String, val gba: Int, val extra: Boolean = fal
     TURBO_A(tk("TURBO A"), 1, extra = true),
     TURBO_B(tk("TURBO B"), 2, extra = true),
     SAVE_STATE(tk("SAVE STATE"), 0, extra = true),
-    LOAD_STATE(tk("LOAD STATE"), 0, extra = true);
+    LOAD_STATE(tk("LOAD STATE"), 0, extra = true),
+    /** DS fallback controls, placed with the extra buttons but holding real core bits. */
+    DS_X("X", 1024, extra = true), DS_Y("Y", 2048, extra = true);
+
+    val dsOnly get() = this == DS_X || this == DS_Y
 
     /** The short word drawn on the button. */
     val face: String get() = when (this) {
@@ -63,7 +67,7 @@ enum class TouchButton(val label: String, val gba: Int, val extra: Boolean = fal
     }
 
     companion object {
-        val extras get() = entries.filter { it.extra }
+        val extras get() = entries.filter { it.extra && !it.dsOnly }
     }
 }
 
@@ -147,6 +151,8 @@ data class TouchControlsStyle(
     /** EDIT LAYOUT's work for a phone upright and held sideways (the controls not in it follow [preset]). */
     val portrait: TouchLayout = TouchLayout(),
     val landscape: TouchLayout = TouchLayout(),
+    /** Runtime core capability, not a saved preference. */
+    val ds: Boolean = false,
 ) {
     /** The moved controls in use for this orientation: none while LAYOUT is a preset. */
     fun layoutFor(portrait: Boolean) = if (!useCustom) TouchLayout() else if (portrait) this.portrait else landscape
@@ -159,6 +165,7 @@ data class TouchControlsStyle(
     /** What a control-by-control layout is built from: the GBA buttons and the extras switched on. */
     fun shown(gameBoy: Boolean): List<TouchButton> = TouchButton.entries.filter { b ->
         when {
+            b.dsOnly -> ds
             b.extra -> b in extras
             gameBoy && (b == TouchButton.L || b == TouchButton.R) -> false
             else -> true

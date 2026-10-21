@@ -180,6 +180,8 @@ class LibraryActivity : ComponentActivity() {
 
     /** INFO's modal while non-null (internal for the ui-preview harness). */
     internal var gameInfo by mutableStateOf<GameInfo?>(null)
+    private var enhancementDialog by mutableStateOf<com.pokedaisy.app.enhancements.EnhancementSession?>(null)
+    private var enhancementGameName by mutableStateOf("")
 
     /** First-time setup over the library while non-null (internal for the ui-preview harness). */
     internal var setup by mutableStateOf<SetupState?>(null)
@@ -614,6 +616,9 @@ class LibraryActivity : ComponentActivity() {
                     },
                 ) }
 
+            enhancementDialog?.let { session ->
+                com.pokedaisy.app.companion.ui.EnhancementDialog(session, enhancementGameName) { enhancementDialog = null }
+            }
             UpdateDialog(updates, m, small)
 
             // After any update offer, never over setup (this screen isn't composed then).
@@ -909,6 +914,13 @@ class LibraryActivity : ComponentActivity() {
                 add(RomMenuItem(tr("FAVORITE"), Icons.Filled.Star, pixel = com.pokedaisy.app.companion.ui.PixelIcons.star) { setFavorite(rom, true) })
             }
             add(RomMenuItem(tr("INFO"), Icons.Filled.Info, opens = true) { showInfo(rom) })
+            add(RomMenuItem(tr("ENHANCEMENTS"), Icons.Filled.Settings, opens = true) {
+                val session = com.pokedaisy.app.enhancements.EnhancementSession(
+                    com.pokedaisy.app.enhancements.EnhancementSettings(getExternalFilesDir(null) ?: filesDir))
+                enhancementDialog = session
+                enhancementGameName = rom.nameWithoutExtension
+                Thread({ session.inspect(RomIdentity.enhancementFingerprint(rom)) }, "rom-enhancements").start()
+            })
             add(RomMenuItem(tr("RENAME"), Icons.Filled.Edit, opens = true, onClick = onRename))
             add(RomMenuItem(tr("REPLACE COVER"), Icons.Filled.Search, opens = true) { coverError = null; coverPickerFor = rom })
             add(RomMenuItem(tr("SET COVER"), Icons.Filled.Image, opens = true) { pendingCoverTarget = rom; pickCoverImage.launch("image/*") })
@@ -1562,7 +1574,7 @@ class LibraryActivity : ComponentActivity() {
 
     /** Every window over the main screen (pass keys to them, not the launcher). */
     private val libraryDialogOpen
-        get() = pickingSort || renaming != null || deleting != null || gameInfo != null || coverPickerFor != null ||
+        get() = pickingSort || renaming != null || deleting != null || gameInfo != null || enhancementDialog != null || coverPickerFor != null ||
             pendingImport != null || saveLoad != null || backupPick != null || updates.release != null || crashAsk ||
             (expandIntro && !crashAsk) || ssIntroShown
 
@@ -1574,11 +1586,7 @@ class LibraryActivity : ComponentActivity() {
     // Setup's GAME BUTTONS: analog L2 / R2 (Retroid's triggers send no keys) as BUTTON_L2 / R2, like the game takes them.
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         val capture = setup?.capture
-        if (capture != null && event.isFromSource(InputDevice.SOURCE_JOYSTICK) && capture.onTriggers(
-                maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)),
-                maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS), event.getAxisValue(MotionEvent.AXIS_THROTTLE)),
-            )
-        ) return true
+        if (capture?.onMotion(event) == true) return true
         return super.dispatchGenericMotionEvent(event)
     }
 
@@ -1976,6 +1984,12 @@ class LibraryActivity : ComponentActivity() {
     private fun SetupHost(s: SetupState) {
         val m = rememberGbaTextMetrics()
         val small = rememberGbaTextMetrics(textScale = 1f)
+        var pendingBinding by remember { mutableStateOf<Pair<GbaControls.Btn, String>?>(null) }
+        var inputError by remember { mutableStateOf(false) }
+        val profiles = InputProfiles(getExternalFilesDir(null) ?: filesDir)
+        fun saveButton(btn: GbaControls.Btn, key: String?) {
+            inputError = runCatching { profiles.bind(InputProfileScope(), btn, key); readButtons(s) }.isFailure
+        }
         BackHandler { setupBack(s) }
         SetupScreen(
             s, m, small,
@@ -1993,11 +2007,14 @@ class LibraryActivity : ComponentActivity() {
             onScreenScraperSignIn = { s.ssLogin.signIn(prefs, { r -> runOnUiThread { r() } }) { startMediaSync(s.covers) } },
             onScreenScraperSignOut = { s.ssLogin.signOut(prefs) },
             buttonRequest = { btn ->
-                val dir = getExternalFilesDir(null) ?: filesDir
                 KeyCapture.Request(
-                    "GBA ${btn.label}", chord = false,
-                    onDone = { keys -> GbaControls.setBinding(dir, btn, keys.first()); readButtons(s) },
-                    onClear = if (btn.canClear) ({ GbaControls.clearBinding(dir, btn); readButtons(s) }) else null,
+                    btn.title(), chord = false,
+                    onDone = { keys ->
+                        val name = KeyCapture.keyName(keys.first())
+                        if (profiles.buttonClashes(InputProfileScope(), btn, name).isEmpty()) saveButton(btn, name)
+                        else pendingBinding = btn to name
+                    },
+                    onClear = { saveButton(btn, null) },
                 )
             },
             onNext = {
@@ -2005,6 +2022,13 @@ class LibraryActivity : ComponentActivity() {
                 if (s.step == steps.last()) finishSetup() else enterStep(s, steps[s.index + 1])
             },
         )
+        pendingBinding?.let { (btn, name) ->
+            OptionConfirm(tk("KEY IN USE"), tr("{0} is already {1}. Move it to {2}?", name,
+                profiles.buttonClashes(InputProfileScope(), btn, name).joinToString { it.title() }, btn.title()), tk("MOVE"), m,
+                onConfirm = { pendingBinding = null; saveButton(btn, name) }, onDismiss = { pendingBinding = null })
+        }
+        if (inputError) OptionConfirm(tk("Could not save controller profile."), "", tk("OK"), m,
+            onConfirm = { inputError = false }, onDismiss = { inputError = false })
     }
 
     /** BACK: the previous step; on the first, leaves setup as if skipped - back to
@@ -2032,7 +2056,7 @@ class LibraryActivity : ComponentActivity() {
 
     /** The GAME BUTTONS step's list: A, B, L, R, START, SELECT (+ the second START / SELECT, turbo) as bound now. */
     private fun readButtons(s: SetupState) {
-        s.buttons = GbaControls.rawBindings(getExternalFilesDir(null) ?: filesDir)
+        s.buttons = InputProfiles(getExternalFilesDir(null) ?: filesDir).resolve().buttons
     }
 
     private fun finishSetup() {

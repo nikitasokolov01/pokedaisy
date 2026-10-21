@@ -8,6 +8,8 @@ keywords: [games list, add rom, import, folder, zip, 7z, archive, cover, box art
 
 The library is the first thing you see when you open PokeDaisy: every game you've added, in the order you pick. Tap a game to play it.
 
+Choose `ENHANCEMENTS` in a game's menu to check its ROM revision and manage its [enhancement permission](enhancements.md) before starting the game.
+
 ![The library in list view: the header's sort, view, add, refresh, help and settings buttons, a row of coloured quick views (ALL, FAVORITES, RECENT, GB, GBC, GBA, DS, HACKS) and the games under them](shots/library-list.png "The library in list view")
 
 The buttons in the header, from left to right:

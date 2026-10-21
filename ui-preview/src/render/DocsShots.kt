@@ -306,7 +306,18 @@ fun docsShots(all: List<Shot>, bw: Int, bh: Int, bd: Float, tw: Int, th: Int, td
             "PARTY", achievements = DocsAchievements(),
             popup = AchievementPopup(AchievementPopup.Kind.UNLOCKED, "Fresh Petals", "Win your first trainer battle", points = 10, achievementId = 2),
         )),
+        Shot("ds-lower-companion", bw, bh, bd, {
+            val keys = com.pokedaisy.app.companion.ui.CompanionKeys()
+            val back = com.pokedaisy.app.companion.ui.CompanionBack()
+            val content: @Composable () -> Unit = { DsLowerPreview(keys, back, { _, _, _ -> false }) }
+            content
+        }),
         Shot("companion-settings", bw, bh, bd, docsCompanion("SETTINGS")),
+        Shot("enhancements", bw, bh, bd, {
+            val session = enhancementPreviewSession()
+            val content: @Composable () -> Unit = { EnhancementPreview(session) }
+            content
+        }),
         Shot("companion-settings-ffspeed", bw, bh, bd, docsCompanion("SETTINGS")) { onNodeWithText("FF SPEED").performClick() },
         Shot("companion-settings-companion", bw, bh, bd, docsCompanion("SETTINGS")) { onNodeWithText("ONE-TAP MOVES").performScrollTo() },
         Shot("companion-settings-tabs", bw, bh, bd, docsCompanion("SETTINGS")) {

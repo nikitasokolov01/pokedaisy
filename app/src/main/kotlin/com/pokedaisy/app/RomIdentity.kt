@@ -11,6 +11,17 @@ import java.security.MessageDigest
  * archive (`.zip` / `.7z`) answers for the ROM inside it ([RomArchive]).
  */
 object RomIdentity {
+    /** Exact selected-ROM identity for enhancement settings, read once away from the UI thread. */
+    fun enhancementFingerprint(rom: File): com.pokedaisy.app.enhancements.RomFingerprint? = runCatching {
+        val size = RomArchive.romSize(rom)
+        val modified = rom.lastModified()
+        val length = rom.length()
+        val result = RomArchive.open(rom).buffered(64 * 1024).use {
+            com.pokedaisy.app.enhancements.RomFingerprint.read(it, size)
+        }
+        if (rom.lastModified() == modified && rom.length() == length) result else null
+    }.getOrNull()
+
     /** The 4-char ASCII game code at ROM header offset 0xAC (`BPRE`, `BPEE`,
      * …) — identifies the *base* game only. Most FireRed-based ROM hacks
      * (Unbound, Gaia, Radical Red, Odyssey, Amethyst, …) keep this exact same

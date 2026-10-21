@@ -10,6 +10,10 @@ import com.pokedaisy.app.companion.i18n.tk
  * from the update. Every new feature gets one (CLAUDE.md): add its id to [ALL] and the badge to its row.
  */
 object NewFeatures {
+    const val ENHANCEMENTS = "enhancements"
+    const val DS_NAVIGATION = "ds_navigation"
+    /** GAME BUTTONS: explicit DS X/Y names, including the global settings and setup. */
+    const val DS_CONTROLS = "ds_controls"
     /** SETTINGS > HUD (companion.ui.FieldHud). */
     const val HUD = "hud"
 
@@ -54,8 +58,9 @@ object NewFeatures {
 
     /** Every feature that gets the tag. */
     val ALL = listOf(
+        ENHANCEMENTS,
         HUD, BATTLE_BUTTONS, GAME_HOTKEYS, COMPANION_WINDOW, HUD_PC, QUICK_MENU, HUD_REPEL, SINGLE_SCREEN, MORE_TAB, TOUCH_CONTROLS,
-        COMPANION_TAB, REUSABLE_TMS, UNLIT_SCREEN, LIGHT_COMPANION,
+        COMPANION_TAB, REUSABLE_TMS, UNLIT_SCREEN, LIGHT_COMPANION, DS_CONTROLS, DS_NAVIGATION,
     )
 
     private const val DAYS = 7

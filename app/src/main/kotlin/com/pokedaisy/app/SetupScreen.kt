@@ -93,7 +93,7 @@ internal fun SetupScreen(
     onBack: () -> Unit,
     onNext: () -> Unit,
     /** GAME BUTTONS: what binding [GbaControls.Btn] does once its button is pressed (the step's rows bind in place). */
-    buttonRequest: (GbaControls.Btn) -> KeyCapture.Request = { KeyCapture.Request("GBA ${it.label}", chord = false, onDone = {}) },
+    buttonRequest: (GbaControls.Btn) -> KeyCapture.Request = { KeyCapture.Request(it.title(), chord = false, onDone = {}) },
     onScreenScraperSignIn: () -> Unit = {},
     onScreenScraperSignOut: () -> Unit = {},
 ) {
@@ -250,14 +250,13 @@ private fun SavesStep(
 private fun ButtonsStep(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics, request: (GbaControls.Btn) -> KeyCapture.Request) {
     Heading(tr("GAME BUTTONS"), m)
     Para(
-        tr("Which button on your device presses each GBA button - key bindings, or remapping, in other emulators. Check A and B first: some devices print them the other way round."),
+        tr("Remap every button, D-pad and left stick. DS X/Y are extra START/SELECT on GB/GBC/GBA."),
         small,
     )
-    Para(tr("To change one, tap it and press the button you want for it. The D-pad and analog stick are fixed."), small, muted = true)
     val btns = GbaControls.Btn.entries
     btns.forEachIndexed { i, btn ->
         KeyBindRow(
-            "GBA ${btn.label}", s.buttons[btn], s.capture, m, small, divider = i < btns.lastIndex,
+            btn.title(), s.buttons[btn], s.capture, m, small, divider = i < btns.lastIndex,
         ) { request(btn) }
     }
     Spacer(Modifier.height(m.u * 4))

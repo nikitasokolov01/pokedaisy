@@ -61,6 +61,8 @@ The device's BACK button works for the companion, from either screen:
 
 On a controller, the HOME or guide button does the same as a BACK tap unless you've bound it to something else.
 
+For a DS game on two displays, `BACK` opens the lower companion from the touch screen. While it is open, your mapped D-pad, A, B, L, R and START navigate it. At the root, B or `BACK` returns to the DS touch screen. See [DS lower-screen controls](devices.md#ds-games).
+
 ## Button sounds
 
 Companion buttons play your game's own menu click, recorded from the ROM itself, so they sound like the game. Buttons that press the game's buttons for you (the battle buttons, for example) stay quiet, because the game makes its own sound. There's no vibration. To turn the clicks off, switch `CLICK SOUND` to `OFF` in SETTINGS.
@@ -104,6 +106,8 @@ No game came out in Portuguese, so on a phone or handheld set to Portuguese, `AU
 This only changes PokeDaisy's words (buttons, labels, hints). Pokémon, move and item names stay as your game has them, so a French game shows its French names whatever you pick, and an English game keeps its English ones.
 
 ## Closing and restarting
+
+`SETTINGS` > `ENHANCEMENTS` opens this exact ROM's [enhancement settings](enhancements.md), including its verification status and unavailable-feature reasons.
 
 At the very end of SETTINGS, under a line, are two buttons:
 

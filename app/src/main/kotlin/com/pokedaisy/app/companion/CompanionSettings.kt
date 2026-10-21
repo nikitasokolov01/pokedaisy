@@ -16,6 +16,7 @@ import com.pokedaisy.app.companion.i18n.tk
  * ([keyCapture]) and the game's screen asks for the keys while a row here waits.
  */
 interface CompanionSettings {
+    val enhancements: com.pokedaisy.app.enhancements.EnhancementSession? get() = null
     /** Fast-forward speed cap. 0 = unlimited. */
     val ffMaxSpeed: Float
     fun setFfMaxSpeed(v: Float)
@@ -108,7 +109,18 @@ interface CompanionSettings {
     /** Waits for the keys to bind (the game's activity gets every key); null where nothing can be pressed (previews). */
     val keyCapture: KeyCapture? get() = null
 
-    /** Current GBA-button bindings, by display name (e.g. "BUTTON_A", "Z"). */
+    /** Whether GAME BUTTONS should name the DS's X/Y instead of the GBA's extra START/SELECT. */
+    val dsControls: Boolean get() = false
+    val inputControllers: List<com.pokedaisy.app.InputProfileChoice> get() = listOf(com.pokedaisy.app.InputProfileChoice(null, "ALL CONTROLLERS"))
+    val inputController: String? get() = null
+    fun setInputController(id: String?) {}
+    val inputForGame: Boolean get() = false
+    fun setInputForGame(on: Boolean) {}
+    fun resetInputProfile() {}
+    fun acceptsInputDevice(id: Int): Boolean = true
+    val inputProfileError: String? get() = null
+
+    /** Current shared game-button bindings, by display name (e.g. "BUTTON_A", "Z"). */
     fun gbaControlBindings(): Map<GbaControls.Btn, List<String>>
 
     /** Rebinds a GBA button to a single key, by display name (no "KEYCODE_" prefix). */

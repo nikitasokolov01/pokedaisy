@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Display
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -95,6 +96,9 @@ class DualScreenPresentation(
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
         (host as? Activity)?.dispatchKeyEvent(event) ?: super.dispatchKeyEvent(event)
 
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean =
+        (host as? Activity)?.dispatchGenericMotionEvent(event) ?: super.dispatchGenericMotionEvent(event)
+
     override fun onStart() {
         super.onStart()
         goFullScreen()
@@ -128,14 +132,21 @@ class DualScreenPresentation(
             gamePick: com.pokedaisy.app.companion.GamePickActions? = null,
             shareBestEffort: ((com.pokedaisy.app.companion.data.BestEffortReport) -> Unit)? = null,
             topStrip: (@androidx.compose.runtime.Composable () -> Unit)? = null,
+            keys: com.pokedaisy.app.companion.ui.CompanionKeys? = null,
         ): View = CompanionColors.track(ComposeView(context)).apply {
             setContent {
+                val content: @androidx.compose.runtime.Composable () -> Unit = {
                 val snap by store.snapshot.collectAsState()
                 CompanionScreen(
                     snap, slots, settings, battleInput, initialTab = initialTab, initialSettingsRow = initialSettingsRow,
                     back = back, clickSound = clickSound, achievements = achievements, statusBar = statusBar,
                     itemUse = itemUse, fly = fly, askForSupport = askForSupport, gamePick = gamePick,
                     shareBestEffort = shareBestEffort, topStrip = topStrip,
+                    keys = keys,
+                )
+                }
+                if (keys == null) content() else com.pokedaisy.app.companion.ui.DsCompanionNavigation(
+                    keys, { key, repeat, start -> companionFocus(this, key, repeat, start) }, content,
                 )
             }
         }

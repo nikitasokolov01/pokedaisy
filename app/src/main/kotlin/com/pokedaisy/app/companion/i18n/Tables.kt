@@ -14,6 +14,7 @@ package com.pokedaisy.app.companion.i18n
  */
 internal fun allTranslationTables(): List<Map<String, Tr>> = listOf(
     trCore,
+    trEnhancements,
     trSettings,
     trLibrary,
     trCompanion,

@@ -150,3 +150,22 @@ tasks.register<JavaExec>("stress") {
     // A fixed heap, like a phone's per-app limit, so a leak fails instead of growing the heap.
     maxHeapSize = "512m"
 }
+
+// Synthetic, fail-fast lower-screen controller/touch checks. No ROM or save assets.
+tasks.register<JavaExec>("dsNavigationCheck") {
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("render.DsNavigationCheckKt")
+    workingDir = rootDir.resolve("../app/src/main/assets")
+    args = listOf(rootDir.resolve("../build/fork-review/phase2-ui").absolutePath)
+    systemProperty("java.awt.headless", "true")
+    systemProperty("scratch", rootDir.resolve("build/ds-navigation").absolutePath)
+}
+
+tasks.register<JavaExec>("enhancementCheck") {
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("render.EnhancementCheckKt")
+    workingDir = rootDir.resolve("../app/src/main/assets")
+    args = listOf(rootDir.resolve("../build/fork-review/phase3-ui").absolutePath)
+    systemProperty("java.awt.headless", "true")
+    systemProperty("scratch", rootDir.resolve("build/enhancement-check").absolutePath)
+}
