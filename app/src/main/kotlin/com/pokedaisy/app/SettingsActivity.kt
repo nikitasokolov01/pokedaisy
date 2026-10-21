@@ -139,6 +139,17 @@ class SettingsActivity : ComponentActivity() {
     /** A captured chord that other hotkeys already have exactly ([taken]): MOVE takes it off them. */
     private class HotkeyClash(val action: Hotkeys.Action, val keys: List<Int>, val taken: List<Hotkeys.Action>)
     private var hotkeyClash by mutableStateOf<HotkeyClash?>(null)
+    private var inputController by mutableStateOf<String?>(null)
+    private var inputError by mutableStateOf(false)
+    private var resetInput by mutableStateOf(false)
+    private var buttonClash by mutableStateOf<Pair<GbaControls.Btn, Int>?>(null)
+    private val inputProfiles get() = InputProfiles(filesRoot)
+    private val inputScope get() = InputProfileScope(device = inputController)
+    private fun saveInput(block: () -> Unit) { inputError = runCatching(block).isFailure; revision++ }
+    private fun bindButton(btn: GbaControls.Btn, code: Int) {
+        if (inputProfiles.buttonClashes(inputScope, btn, Hotkeys.keyName(code)).isNotEmpty()) buttonClash = btn to code
+        else saveInput { inputProfiles.bind(inputScope, btn, Hotkeys.keyName(code)) }
+    }
     private var revision by mutableIntStateOf(0)
     private var aspectPicker by mutableStateOf(false)
 
@@ -245,11 +256,7 @@ class SettingsActivity : ComponentActivity() {
     // Analog L2 / R2 (Retroid's triggers send no keys): captured as BUTTON_L2 / R2, the keys the game
     // screen turns them into.
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        if (event.isFromSource(InputDevice.SOURCE_JOYSTICK) && capture.onTriggers(
-                maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)),
-                maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS), event.getAxisValue(MotionEvent.AXIS_THROTTLE)),
-            )
-        ) return true
+        if (capture.onMotion(event)) return true
         return super.dispatchGenericMotionEvent(event)
     }
 
@@ -387,13 +394,25 @@ class SettingsActivity : ComponentActivity() {
                     onDismiss = { hotkeyClash = null },
                     onConfirm = {
                         hotkeyClash = null
-                        Hotkeys.setBinding(filesRoot, c.action, c.keys, takeFrom = c.taken)
+                        saveInput { inputProfiles.bind(inputScope, c.action, c.keys.map(Hotkeys::keyName), c.taken) }
                         revision++
                     },
                 )
             }
 
             UpdateDialog(updates, m, small)
+
+            buttonClash?.let { (btn, code) ->
+                OptionConfirm(tk("KEY IN USE"), tr("{0} is already {1}. Move it to {2}?", Hotkeys.keyName(code),
+                    inputProfiles.buttonClashes(inputScope, btn, Hotkeys.keyName(code)).joinToString { it.title() }, btn.title()),
+                    tk("MOVE"), m, onDismiss = { buttonClash = null }, onConfirm = {
+                        buttonClash = null; saveInput { inputProfiles.bind(inputScope, btn, Hotkeys.keyName(code)) }
+                    })
+            }
+            if (resetInput) OptionConfirm(tk("RESET PROFILE"), tr("Reset this profile? Global resets to factory settings; other profiles inherit their defaults."),
+                tk("RESET"), m, onDismiss = { resetInput = false }, onConfirm = {
+                    resetInput = false; saveInput { inputProfiles.reset(inputScope) }
+                })
 
             removingCheat?.let { i ->
                 val c = cheatList.getOrNull(i)
@@ -893,7 +912,7 @@ class SettingsActivity : ComponentActivity() {
     @Composable
     private fun QuickMenuScreen(m: GbaTextMetrics) {
         @Suppress("UNUSED_EXPRESSION") revision
-        val binding = remember(revision) { Hotkeys.load(filesRoot).rawBindings[Hotkeys.Action.QUICK_MENU].orEmpty() }
+        val binding = remember(revision) { inputProfiles.resolve().hotkeys[Hotkeys.Action.QUICK_MENU].orEmpty() }
         val rows = com.pokedaisy.app.companion.ui.quickMenuRows(
             prefs.quickMenuActions, binding.joinToString(", ") { it.replace("BUTTON_", "").replace('_', ' ') }, prefs.quickMenuStyle, prefs.quickMenuLabels,
             setShown = { prefs.quickMenuActions = it; revision++ },
@@ -1528,15 +1547,15 @@ class SettingsActivity : ComponentActivity() {
 
     /** A hotkey bound to [keys] - asked first when other hotkeys have exactly that chord (MOVE takes it off them). */
     private fun bindHotkey(action: Hotkeys.Action, keys: List<Int>) {
-        val taken = Hotkeys.clashes(Hotkeys.load(filesRoot).rawBindings, action, keys.map { Hotkeys.keyName(it) })
-        if (taken.isEmpty()) Hotkeys.setBinding(filesRoot, action, keys)
+        val taken = Hotkeys.clashes(inputProfiles.resolve(inputScope).hotkeys, action, keys.map { Hotkeys.keyName(it) })
+        if (taken.isEmpty()) saveInput { inputProfiles.bind(inputScope, action, keys.map(Hotkeys::keyName)) }
         else hotkeyClash = HotkeyClash(action, keys, taken)
         revision++
     }
 
     @Composable
     private fun HotkeysScreen(m: GbaTextMetrics, small: GbaTextMetrics) {
-        val hotkeys = remember(revision) { Hotkeys.load(filesRoot) }
+        val hotkeys = remember(revision, inputController) { Hotkeys.from(inputProfiles.resolve(inputScope).hotkeys) }
         Column(modifier = Modifier.fillMaxWidth()) {
             Hint(
                 tr("Tap a hotkey, then press one or more keys/buttons together and release — e.g. hold Select and tap R1 for a chord. BACK cancels."),
@@ -1545,6 +1564,7 @@ class SettingsActivity : ComponentActivity() {
             OptionListWindow(m, Modifier.fillMaxWidth().weight(1f, fill = false)) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     // Off, the binds stay as they are, greyed out, and every key goes to the game.
+                    InputProfileHeader(m, small)
                     val on = prefs.hotkeysEnabled
                     OptionLine(
                         tk("HOTKEYS"), if (on) tk("ON") else tk("OFF"), selected = false, m, height = m.rowHeight * 1.2f,
@@ -1553,13 +1573,15 @@ class SettingsActivity : ComponentActivity() {
                     Hotkeys.Action.entries.forEachIndexed { i, action ->
                         KeyBindRow(
                             action.title, hotkeys.rawBindings[action], capture, m, small,
-                            divider = i < Hotkeys.Action.entries.lastIndex, enabled = on, labelBadge = action.badge,
+                            divider = i < Hotkeys.Action.entries.lastIndex, enabled = on,
+                            labelBadge = if (Hotkeys.conflicted(hotkeys.rawBindings, action)) tk("KEY IN USE") else action.badge,
                         ) {
                             com.pokedaisy.app.companion.KeyCapture.Request(
                                 action.title, chord = true,
                                 onDone = { keys -> bindHotkey(action, keys) },
                                 // CLEAR leaves it unbound ("-").
-                                onClear = { Hotkeys.clearBinding(filesRoot, action); revision++ },
+                                onClear = { saveInput { inputProfiles.bind(inputScope, action, null) } },
+                                acceptsDevice = { inputController == null || ControllerDevices.key(it) == inputController },
                             )
                         }
                     }
@@ -1570,15 +1592,17 @@ class SettingsActivity : ComponentActivity() {
 
     @Composable
     private fun ControlsScreen(m: GbaTextMetrics, small: GbaTextMetrics) {
-        val ctrls = remember(revision) { GbaControls.rawBindings(filesRoot) }
+        val ctrls = remember(revision, inputController) { inputProfiles.resolve(inputScope).buttons }
         Column(modifier = Modifier.fillMaxWidth()) {
-            Hint(tr("Shared game buttons. DS X and Y become START 2 and SELECT 2 on GB/GBC/GBA. The D-pad and analog stick are fixed."), m, small)
+            Hint(tr("Remap every button, D-pad and left stick. DS X/Y are extra START/SELECT on GB/GBC/GBA."), m, small)
             OptionListWindow(m, Modifier.fillMaxWidth().weight(1f, fill = false)) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
+                    InputProfileHeader(m, small)
                     GbaControls.Btn.entries.forEachIndexed { i, btn ->
                         KeyBindRow(
                             btn.title(), ctrls[btn], capture, m, small,
                             divider = i < GbaControls.Btn.entries.lastIndex,
+                            labelBadge = if (GbaControls.conflicted(ctrls, btn)) tk("KEY IN USE") else null,
                         ) { controlRequest(btn) }
                     }
                 }
@@ -1588,9 +1612,22 @@ class SettingsActivity : ComponentActivity() {
 
     private fun controlRequest(btn: GbaControls.Btn) = com.pokedaisy.app.companion.KeyCapture.Request(
         btn.title(), chord = false,
-        onDone = { keys -> GbaControls.setBinding(filesRoot, btn, keys.first()); revision++ },
-        onClear = if (btn.canClear) ({ GbaControls.clearBinding(filesRoot, btn); revision++ }) else null,
+        onDone = { keys -> bindButton(btn, keys.first()) },
+        onClear = { saveInput { inputProfiles.bind(inputScope, btn, null) } },
+        acceptsDevice = { inputController == null || ControllerDevices.key(it) == inputController },
     )
+
+    @Composable private fun InputProfileHeader(m: GbaTextMetrics, small: GbaTextMetrics) {
+        val choices = ControllerDevices.choices()
+        OptionLine(tk("CONTROLLER PROFILE"), choices.firstOrNull { it.id == inputController }?.label ?: "${tk("OFFLINE")} ${inputController?.take(6).orEmpty()}", false, m) {
+            capture.cancel(); buttonClash = null; hotkeyClash = null
+            inputController = choices[(choices.indexOfFirst { it.id == inputController } + 1).mod(choices.size)].id
+            revision++
+        }
+        OptionLine(tk("RESET PROFILE"), null, false, m) { capture.cancel(); resetInput = true }
+        if (inputError) Hint(tr("Could not save controller profile."), m, small)
+        if (inputProfiles.unreadable(inputScope)) Hint(tr("Controller profile could not be read. Using inherited settings."), m, small)
+    }
 
     // ---- folders --------------------------------------------------------
 

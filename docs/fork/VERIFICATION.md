@@ -35,7 +35,7 @@ The unmodified manual parser failed on CRLF checkouts (two docs/search tests). C
 including equal API output for a synthetic LF/CRLF document. No source files were
 mass-converted and no dependency versions were changed.
 
-## Input slice checks
+## Historical first-slice checks
 
 - Full current-source unit suite: 2,860 tests, 2,662 passed, six failures matching
   the baseline table above, 192 skipped. No new failing test was observed. Optional
@@ -60,6 +60,38 @@ The debug APK for implementation commit `159d816` is copied to
 `build/fork-review/pokedaisy-ds-input-159d816-debug.apk` for local device handoff.
 SHA-256: `db877c26d6bbce9028f247b0eb9d7ada919516aa607b16c99a6c5732fa54e297`.
 
+## Completed Phase 1 checks (2026-10-20)
+
+- Final broad run: **2,891 tests, 2,693 passed, six failed, 192 skipped**. Each failure
+  is the same Windows baseline case listed above; no new failing case was observed.
+  This remains a failed full suite, not a clean pass. Optional ROM checks skipped.
+- **68 focused checks passed** in that run: profiles, controller routing/capture,
+  all twelve remapped DS outputs, GBA aliases/turbo, touch geometry and eight rendered
+  DS profile/touch variants. The earlier isolated focused run passed 65 checks; the
+  final run includes three additional diagonal/menu/profile-conflict regressions.
+- Native DS contract: NDK clang compiled `app/src/test/native/nds_input_contract_test.cpp`
+  for Android arm64. Compile-time assertions check twelve independently specified
+  pressed-low register masks, all-up/all-down, X/Y separation and high-bit rejection.
+  The production adapter uses those exact conversion functions. CI now runs this check.
+- Android debug build passed with the pinned mGBA, melonDS and rcheevos sources.
+- Translations: 1,232 entries, 1,105 used keys, zero problems.
+- Manual/docs search: eight tests passed. Website production build passed (28 pages);
+  nothing was deployed. Six updated manual images were generated from real UI sources.
+- Inspected actual PNGs for global full controls, global hotkeys, DS controller/game
+  profile settings and DS X/Y touch fallback. The global hotkey screenshot harness
+  was corrected to activate the row semantically and assert SAVE STATE is present.
+  Compact profile names can ellipsize; the controls list scrolls as before.
+- Claude review was received and evaluated; decisions are in [REVIEW_LOG.md](REVIEW_LOG.md).
+- `adb devices` returned an empty device list. No ROM, BIOS, save, party or PC data
+  was used. Hardware button codes, live JNI execution, screenshots from a running core,
+  touch transforms and physical display switching remain unverified.
+
+Local evidence: `build/fork-review/phase1-full-tests.log`, `phase1-full-results/`,
+`phase1-build-tests.log`, `phase1-focused-results/`, `phase1-ui-preview.log`,
+`phase1-ui-hotkeys.log`, `phase1-docs-tests.log`, `phase1-website-build.log`.
+The only app change after the full run was the offline selected-profile label; the
+desktop UI compiled it successfully and the handoff APK rebuild checks Android compilation.
+
 ## Windows build command
 
 The repository has a Unix launcher only. From PowerShell, use a compatible JDK
@@ -76,26 +108,34 @@ game ROMs or borrow unrelated local saves to satisfy test prerequisites.
 
 ## Thor acceptance checklist (pending)
 
-1. Back up the app's existing data before installing a development APK. The debug
-   signer may differ from the installed release; do not uninstall to resolve this
-   without preserving saves, states and settings.
-2. Open a user-provided DS game. In companion SETTINGS > GAME BUTTONS, locate DS X
-   and DS Y. Rebind each to a distinct physical button, leaving the capture via touch
-   if necessary. Confirm X/Y act in the game's own menus and START/SELECT stay distinct.
-3. Check the library's GAME BUTTONS page and first-time setup: X/Y must be discoverable
-   there too. Close and relaunch, then suspend/resume, and verify the bindings persist.
-4. Check A/B, X/Y, L/R, START/SELECT and four directions. Test the left stick, hat and
-   a USB/Bluetooth pad. Direction remapping and separate per-device profiles remain
-   future work; do not mistake the existing fixed directions for completed remapping.
-5. Hold a button, then disconnect that controller. Confirm no movement or turbo stays
-   active, touch controls appear in AUTO, and reconnect works. Repeat with FF HOLD.
-6. Hold a game button or FF/slow-mo shortcut while opening Android UI or suspending.
-   On return, input must be neutral until pressed again. A toggled FF preference should
-   remain unchanged. Check ordinary input on the second screen and display swapping.
-7. Run a GB/GBC/GBA game: the additional START/SELECT bindings retain their old behavior;
-   turbo, chord shortcuts and manual/automatic states retain their existing behavior.
-8. Chord-prefix leakage is a known remaining issue. This slice must not be accepted
-   as satisfying the full hotkey-isolation requirement.
+1. Preserve existing app data when installing the development APK. A debug signer may
+   differ from the installed release; do not uninstall without keeping saves/settings.
+2. Open a user-provided DS game. In companion SETTINGS > GAME BUTTONS select the Thor
+   under CONTROLLER PROFILE and THIS GAME under APPLIES TO. Rebind DS X and DS Y and
+   confirm each in the game's menus; START/SELECT remain independent.
+3. Test A/B/X/Y/L/R/START/SELECT and all four directions with alternate bindings. Capture
+   the left stick and D-pad independently. Reset and confirm the inherited bindings return.
+4. Create different ALL GAMES and THIS GAME mappings, then a second-controller profile.
+   Confirm precedence, relaunch persistence and reconnect persistence when Android changes
+   the temporary device ID. Duplicate/empty descriptors should use shared defaults.
+5. Hold the first listed shortcut button before its remaining buttons. Confirm zero game
+   input from completed chords, one action despite repeats, and a short game tap for an
+   unused modifier. Verify ordinary L/R holds remain immediate. Test moving conflicting
+   chords, disabling HOTKEYS, and clearing a single-button hotkey used as a game button.
+6. Pull a trigger that reports analog plus digital input; FF HOLD must start once and
+   stop only after both reports release. Hold FF from two controllers, then disconnect
+   one; the remaining controller should keep FF held. Different devices cannot form a chord.
+7. Disconnect a controller while holding movement/turbo. Its holds must clear while
+   another pad's holds remain. With no pad connected and SHOW set to AUTO, use the touch
+   D-pad, A/B/X/Y/L/R/START/SELECT. Change/cancel/reset profiles using touch alone.
+8. Suspend, lose focus, rebind and return to the game. No stale player hold or deferred
+   shortcut tap should remain; toggled FF is preserved. Test QUICK MENU via an analog
+   trigger, including release and the next press, without duplicate menu/game actions.
+9. Bind SWAP SCREENS, COMPANION and SCREENSHOT. Verify existing display swap and DS
+   lower-screen switching, touch release/coordinates, and a PNG containing both DS
+   game screens under the app's external files/screenshots folder. DS rewind stays N/A.
+10. Repeat the main controls in GB/GBC/GBA: X/Y aliases still press extra START/SELECT,
+    turbo works, and state/undo/fast-forward shortcuts preserve existing behavior.
 
 No new feature writes ROMs, saves, party/PC data or challenge state. No HGSS modifier
 or Gen 5 capability is certified by this checklist.

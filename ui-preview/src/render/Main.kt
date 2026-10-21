@@ -2012,7 +2012,10 @@ fun main(args: Array<String>) {
             Prefs(android.content.Context()).appTheme = com.pokedaisy.app.companion.ui.theme.FIRERED_THEME_ID
             LibraryActivity()
         }),
-        Shot("settings-hotkeys", tw, th, td, activity { SettingsActivity() }) { onNodeWithText("HOTKEYS").performScrollTo().performClick() },
+        Shot("settings-hotkeys", tw, th, td, activity { SettingsActivity() }) {
+            onNodeWithText("HOTKEYS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
+            onAllNodesWithText("SAVE STATE").onFirst().assertExists()
+        },
         // A hotkey waiting for keys: CLEAR (unbind) / CANCEL over the list.
         Shot("settings-hotkeys-capture", tw, th, td, activity { SettingsActivity() }) {
             onNodeWithText("HOTKEYS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
@@ -2211,6 +2214,7 @@ val PREVIEW_BUTTONS: Map<GbaControls.Btn, List<String>> = GbaControls.Btn.entrie
         GbaControls.Btn.START -> listOf("BUTTON_START", "ENTER"); GbaControls.Btn.SELECT -> listOf("BUTTON_SELECT")
         GbaControls.Btn.START2 -> listOf("BUTTON_X"); GbaControls.Btn.SELECT2 -> listOf("BUTTON_Y")
         GbaControls.Btn.TURBO_A, GbaControls.Btn.TURBO_B -> emptyList()
+        GbaControls.Btn.UP, GbaControls.Btn.DOWN, GbaControls.Btn.LEFT, GbaControls.Btn.RIGHT -> GbaControls.defaults().getValue(it)
     }
 }
 

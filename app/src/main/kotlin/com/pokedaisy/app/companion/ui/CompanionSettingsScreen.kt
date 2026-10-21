@@ -159,26 +159,40 @@ fun CompanionSettingsScreen(
                             tick++
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
-                    Page.BUTTONS -> GbaControls.Btn.entries.map { btn ->
+                    Page.BUTTONS -> inputProfileRows(settings, {
+                        confirm = Confirm(tk("RESET PROFILE"), tr("Reset this profile? Global resets to factory settings; other profiles inherit their defaults."), tk("RESET")) { settings.resetInputProfile(); tick++ }
+                    }) { capture?.cancel(); tick++ } + GbaControls.Btn.entries.map { btn ->
                         val title = btn.title(settings.dsControls)
-                        SettingRow(title, bindingValue(capture, title, settings.gbaControlBindings()[btn])) {
+                        SettingRow(title, if (GbaControls.conflicted(settings.gbaControlBindings(), btn)) tk("KEY IN USE") else bindingValue(capture, title, settings.gbaControlBindings()[btn])) {
                             capture?.toggle(title) {
                                 KeyCapture.Request(
                                     title, chord = false,
-                                    onDone = { keys -> settings.setGbaControlBinding(btn, KeyCapture.keyName(keys.first())); tick++ },
+                                    onDone = { keys ->
+                                        val name = KeyCapture.keyName(keys.first())
+                                        val taken = settings.gbaControlBindings().filter { (other, names) -> other != btn && name in names }.keys
+                                        if (taken.isEmpty()) { settings.setGbaControlBinding(btn, name); tick++ }
+                                        else confirm = Confirm(tk("KEY IN USE"), tr("{0} is already {1}. Move it to {2}?", name,
+                                            taken.joinToString { it.title(settings.dsControls) }, title), tk("MOVE")) {
+                                            settings.setGbaControlBinding(btn, name); tick++
+                                        }
+                                    },
                                     onClear = if (btn.canClear) ({ settings.clearGbaControlBinding(btn); tick++ }) else null,
+                                    acceptsDevice = settings::acceptsInputDevice,
                                 )
                             }
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
                     // Off, the binds stay as they are, greyed out, and every key goes to the game.
-                    Page.HOTKEYS -> listOf(
+                    Page.HOTKEYS -> inputProfileRows(settings, {
+                        confirm = Confirm(tk("RESET PROFILE"), tr("Reset this profile? Global resets to factory settings; other profiles inherit their defaults."), tk("RESET")) { settings.resetInputProfile(); tick++ }
+                    }) { capture?.cancel(); tick++ } + listOf(
                         SettingRow(tk("HOTKEYS"), if (settings.hotkeysEnabled) tk("ON") else tk("OFF")) {
                             settings.setHotkeysEnabled(!settings.hotkeysEnabled); tick++
                         },
                     ) + Hotkeys.Action.entries.map { action ->
                         val title = action.title
-                        SettingRow(title, bindingValue(capture, title, settings.hotkeyBindings()[action]), enabled = settings.hotkeysEnabled, labelBadge = action.badge) {
+                        val supported = !(settings.dsControls && action == Hotkeys.Action.REWIND_HOLD)
+                        SettingRow(title, if (!supported) tk("N/A") else if (Hotkeys.conflicted(settings.hotkeyBindings(), action)) tk("KEY IN USE") else bindingValue(capture, title, settings.hotkeyBindings()[action]), enabled = settings.hotkeysEnabled && supported, labelBadge = action.badge) {
                             capture?.toggle(title) {
                                 KeyCapture.Request(
                                     title, chord = true,
@@ -195,6 +209,7 @@ fun CompanionSettingsScreen(
                                     },
                                     // CLEAR leaves it unbound.
                                     onClear = { settings.setHotkeyBinding(action, null); tick++ },
+                                    acceptsDevice = settings::acceptsInputDevice,
                                 )
                             }
                         }
@@ -386,6 +401,20 @@ private class Selector(
 )
 
 private class Confirm(val title: String, val message: String, val confirmLabel: String, val action: () -> Unit)
+
+private fun inputProfileRows(s: CompanionSettings, reset: () -> Unit, changed: () -> Unit): List<SettingRow> {
+    val choices = s.inputControllers
+    return listOf(
+        SettingRow(tk("CONTROLLER PROFILE"), choices.firstOrNull { it.id == s.inputController }?.label ?: "${tk("OFFLINE")} ${s.inputController?.take(6).orEmpty()}") {
+            changed()
+            s.setInputController(choices[(choices.indexOfFirst { it.id == s.inputController } + 1).mod(choices.size)].id)
+        },
+        SettingRow(tk("APPLIES TO"), if (s.inputForGame) tk("THIS GAME") else tk("ALL GAMES")) {
+            changed(); s.setInputForGame(!s.inputForGame)
+        },
+        SettingRow(tk("RESET PROFILE"), null, onClick = reset),
+    ) + s.inputProfileError?.let { listOf(SettingRow(tr(it), null, enabled = false) {}) }.orEmpty()
+}
 
 private fun homeRows(
     s: CompanionSettings,

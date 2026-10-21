@@ -250,7 +250,7 @@ private fun SavesStep(
 private fun ButtonsStep(s: SetupState, m: GbaTextMetrics, small: GbaTextMetrics, request: (GbaControls.Btn) -> KeyCapture.Request) {
     Heading(tr("GAME BUTTONS"), m)
     Para(
-        tr("Shared game buttons. DS X and Y become START 2 and SELECT 2 on GB/GBC/GBA. The D-pad and analog stick are fixed."),
+        tr("Remap every button, D-pad and left stick. DS X/Y are extra START/SELECT on GB/GBC/GBA."),
         small,
     )
     val btns = GbaControls.Btn.entries

@@ -1,6 +1,9 @@
 package com.pokedaisy.app.companion
 
 import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.InputDevice
+import com.pokedaisy.app.InputCodes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,12 +25,14 @@ class KeyCapture {
     class Request(
         /** What's being bound, as the row says it ("GBA A", "SAVE STATE"): the row knows itself by it. */
         val title: String,
-        /** A hotkey: several keys together. A GBA button takes one, and never the D-pad (fixed). */
+        /** A hotkey takes a chord; a game button takes one key or direction. */
         val chord: Boolean,
         /** The keys pressed, in order (keycodes). */
         val onDone: (List<Int>) -> Unit,
         /** Leaves it unbound (a hotkey, TURBO A / B); null where that isn't allowed. */
         val onClear: (() -> Unit)? = null,
+        /** Scope capture to the selected controller; other controllers cannot overwrite its profile. */
+        val acceptsDevice: (Int) -> Boolean = { true },
     )
 
     var request by mutableStateOf<Request?>(null)
@@ -47,6 +52,9 @@ class KeyCapture {
     private val swallowUp = HashSet<Int>()
     private var ltDown = false
     private var rtDown = false
+    private val digital = hashMapOf<Int, MutableSet<Int>>()
+    private val analog = hashMapOf<Int, Set<Int>>()
+    private var captureDevice: Int? = null
 
     fun isFor(title: String) = request?.title == title
 
@@ -55,6 +63,7 @@ class KeyCapture {
         swallowUp += held
         held.clear()
         keys = emptyList()
+        captureDevice = null
         request = r
         if (!was) onActiveChanged?.invoke(true)
     }
@@ -82,7 +91,33 @@ class KeyCapture {
     /** A key event; true when it's the capture's (the caller passes it on otherwise). */
     fun onKey(event: KeyEvent): Boolean {
         if (event.action != KeyEvent.ACTION_DOWN && event.action != KeyEvent.ACTION_UP) return active && event.keyCode !in SYSTEM_KEYS
-        return onKey(event.keyCode, event.action == KeyEvent.ACTION_DOWN, event.repeatCount)
+        return onPhysicalKey(event.deviceId, event.keyCode, event.action == KeyEvent.ACTION_DOWN, event.repeatCount)
+    }
+
+    /** Merge duplicate trigger/hat reports and keep a capture on the first accepted physical device. */
+    fun onPhysicalKey(device: Int, code: Int, down: Boolean, repeat: Int = 0): Boolean {
+        if (code in SYSTEM_KEYS) return false
+        val old = digital[device].orEmpty() + analog[device].orEmpty()
+        val keys = digital.getOrPut(device) { hashSetOf() }
+        if (down) keys += code else keys -= code
+        return physicalChange(device, old, keys + analog[device].orEmpty(), repeat)
+    }
+
+    fun onAxes(device: Int, keys: Set<Int>): Boolean {
+        val old = digital[device].orEmpty() + analog[device].orEmpty()
+        analog[device] = keys
+        return physicalChange(device, old, digital[device].orEmpty() + keys)
+    }
+
+    private fun physicalChange(device: Int, old: Set<Int>, now: Set<Int>, repeat: Int = 0): Boolean {
+        val wasActive = active
+        if (wasActive && (request?.acceptsDevice?.invoke(device) == false ||
+                (captureDevice != null && captureDevice != device))) return true
+        if (wasActive && (now - old).isNotEmpty() && repeat == 0) captureDevice = device
+        var consumed = wasActive
+        for (key in now - old) consumed = onKey(key, true, repeat) || consumed
+        for (key in old - now) consumed = onKey(key, false) || consumed
+        return consumed
     }
 
     fun onKey(keyCode: Int, down: Boolean, repeatCount: Int = 0): Boolean {
@@ -101,7 +136,6 @@ class KeyCapture {
                 swallowUp += keyCode
                 return true
             }
-            if (!r.chord && keyCode in DPAD) return true
             if (keyCode !in keys) keys = keys + keyCode
             held += keyCode
         } else {
@@ -133,20 +167,23 @@ class KeyCapture {
         return true
     }
 
+    fun onMotion(event: MotionEvent): Boolean {
+        if (event.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK) return false
+        val now = InputCodes.axes(event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y),
+            event.getAxisValue(MotionEvent.AXIS_X), event.getAxisValue(MotionEvent.AXIS_Y),
+            maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)),
+            maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS), event.getAxisValue(MotionEvent.AXIS_THROTTLE)))
+        return onAxes(event.deviceId, now)
+    }
+
     companion object {
         /** Left to Android while capturing: volume, power, HOME, recents. */
         private val SYSTEM_KEYS = setOf(
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE,
             KeyEvent.KEYCODE_POWER, KeyEvent.KEYCODE_HOME, KeyEvent.KEYCODE_APP_SWITCH,
         )
-        /** The GBA's D-pad is fixed to these (GbaInput): a GBA button can't take one. */
-        private val DPAD = setOf(
-            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
-            KeyEvent.KEYCODE_DPAD_UP_LEFT, KeyEvent.KEYCODE_DPAD_UP_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN_LEFT, KeyEvent.KEYCODE_DPAD_DOWN_RIGHT,
-        )
-
         /** A key's name as stored ("BUTTON_A", "Z"). */
-        fun keyName(keyCode: Int): String = KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_")
+        fun keyName(keyCode: Int): String = InputCodes.name(keyCode) ?: KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_")
 
         /** A stored key name as the player reads it: "BUTTON_L1" -> "L1", "SHIFT_RIGHT" -> "SHIFT RIGHT". */
         fun label(name: String) = name.replace("BUTTON_", "").replace('_', ' ')

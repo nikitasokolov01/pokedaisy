@@ -53,3 +53,37 @@ Those bindings are shared with DS; explicit dual names on X/Y explain their diff
 semantics. DS companion rows use DS labels; GBA companion rows retain GBA labels.
 
 This review is source feedback, not executed tests or Thor acceptance.
+
+## Phase 1 profile and routing review (2026-10-20)
+
+An actual third Claude review was received through the same authenticated, tool-free
+CLI. Input was limited to the public profile store, shortcut/router and input-mask
+sources, with the explicit modifier-first policy. Request and response are retained
+locally as `build/fork-review/phase1-profiles-review*.txt`.
+
+- Accepted: independently edited parent profiles can combine into duplicate controls.
+  Effective mappings now fail closed for duplicate keys and equal/subset shortcuts,
+  with KEY IN USE indicators and a combined-scope repair test. Move confirmation removes
+  inherited conflicts only in the edited scope.
+- Accepted: the unused `GbaInput.onMotion` global hat state could bypass per-device
+  ownership. Removed it after confirming that all live motion uses ControllerInputRouter.
+  The pure motion-to-direction helper remains for existing companion navigation.
+- Accepted in part: sync the profile directory after rename where Java/the host permits.
+  File content is synced before replace; Windows can reject directory sync. No stronger
+  power-loss durability claim is made. Legacy input files are read without rewriting;
+  unknown-version profiles are preserved and reported. Save files are not involved.
+- Superset shadowing: current runtime rejects all ambiguous equal/subset bindings and
+  the UI detects them before save. Therefore the reported permanently shadowed smaller
+  chord is addressed by explicit conflict handling, not a hidden timeout.
+- Chord order: deliberate policy, documented in the manual. The first captured/listed
+  button is the reserved modifier. Pressing a shoulder first is ordinary game input;
+  adding the modifier afterward cannot retroactively create an isolated shortcut.
+  Reserving every possible chord participant would delay ordinary game holds.
+- `setControls` clears per-device maps intentionally: activity changes first cancel the
+  router, and new device states resolve their current profiles. Toggle/rebind cancellation
+  is covered by focused tests. Device removal otherwise releases only that device.
+
+Additional local review found reentrant UI changes during a multi-axis event and analog
+quick-menu releases being skipped. Routing now ends the game batch when UI takes input,
+and menus still receive shortcut releases for the next press. Regression tests cover both. No review here
+constitutes live Thor testing or native execution with a ROM.

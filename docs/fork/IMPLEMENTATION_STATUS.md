@@ -10,12 +10,13 @@ Architecture: [audit](ARCHITECTURE.md). Independent review: [log](REVIEW_LOG.md)
 - [x] Read project guidance and trace Android input through JNI to melonDS.
 - [x] Initialize pinned mGBA, melonDS and rcheevos submodules.
 - [x] Phase 0: baseline debug APK built; source path understood; Windows test blockers recorded below.
-- [ ] Phase 1: DS input reliability and full controller profiles.
-  - [x] First slice: explicit DS X/Y labels, held-input lifecycle fixes and DS/GBA output tests.
-  - [ ] All 12 remappable buttons, including directions.
-  - [ ] Global defaults, per-game overrides, reliable device profiles, reset and conflicts.
-  - [ ] Chord-prefix isolation, tap/hold policy, screenshot/swap/companion shortcuts.
-  - [ ] Controller disconnect/reconnect and touch-only configuration on hardware.
+- [x] Phase 1 implementation and synthetic input checks.
+  - [x] Explicit DS X/Y labels and all 12 remappable controls, including directions and left stick.
+  - [x] Global defaults, per-game overrides, descriptor-based device profiles, reset and conflicts.
+  - [x] Modifier-first chord isolation, tap/hold policy, screenshot/swap/companion shortcuts.
+  - [x] Per-device releases, duplicate analog/digital report merging and DS X/Y touch fallback.
+  - [x] Profile, routing, capture, GBA regression and native DS mask contract tests.
+  - [ ] Live AYN Thor / USB / Bluetooth acceptance and suspend/two-display checks.
 - [ ] Phase 2: audit lower-screen ownership, add assignable switching, verify themed navigation.
 - [ ] Phase 3: exact ROM verification, capabilities, per-game settings and fail-closed patch lifecycle.
 - [ ] Phase 4: independently verified EXP Share, caps/accessibility, text speed and HM actions.
@@ -24,45 +25,51 @@ Architecture: [audit](ARCHITECTURE.md). Independent review: [log](REVIEW_LOG.md)
 
 ## Evidence and limitations
 
-The baseline debug APK builds with the pinned wrapper and native cores. The initial
-full suite reports Windows failures in PerformanceGuardsTest (line-ending match),
-SiteDataExportTest (generated JSON comparison), RomAddedTest, BestEffortTest and
-SaveFileEditsTest (persistence/rollback behavior). No save-handling changes are made
-in this slice. The current-source full run has 2,860 tests: 2,662 passed, six failed,
-192 skipped. The same six failures were observed before the input changes. The
-35 focused input/capture/translation tests pass. UI renders have been inspected;
-the complete Phase 1 hardware and profile gates remain open.
-The exact upstream baseline also passed CI; see [verification](VERIFICATION.md).
-No Thor device or user-authorized ROM/save testing assets have been used. Hardware,
-gameplay, native button observation and two-display UI behavior remain unverified.
-The user clarified the problem as missing X/Y options on AYN Thor. The existing
-START 2 / SELECT 2 bindings already send DS X/Y, but were labeled only as GBA controls.
-The new UI names them explicitly without changing saved property names or mappings.
-Bindings are still global across games; per-game/device profiles remain unfinished.
+Phase 1 is implemented and verified with synthetic inputs and rendered UI. The initial
+65 focused checks passed, including eight settings/touchscreen renders. A full final
+suite and refreshed handoff are recorded in [VERIFICATION.md](VERIFICATION.md).
+The debug APK builds with the pinned native cores. The six existing Windows baseline
+failures remain tracked separately; a full-suite failure is not called a clean pass.
+
+The user identified missing configurable X/Y options on AYN Thor. DS companion rows
+now name DS X and DS Y explicitly. Physical buttons, hat and left-stick directions
+all resolve through the active profile. The Thor's actual Android controller name and
+stable descriptor select its profile; no unverified vendor/product IDs are hard-coded.
+
+Existing global bindings are inherited without rewriting their files. Narrower profiles
+persist independently, use atomic replacement, and preserve unreadable/unknown-version
+files. Equal/subset shortcut conflicts and combined-profile button conflicts fail closed
+and are visible in settings. Chord modifiers are reserved until release or completion;
+unused modifier taps last two emulated frames. This policy is documented in the manual.
+
+No Android device was connected during verification. Live Thor input, pairing/reconnect,
+stylus and display switching, screenshots from a running core, and actual JNI-to-melonDS
+execution with a legal ROM remain unverified. The native check compiles assertions against
+the same mask functions used by the adapter; it does not boot a ROM. No user ROM/save
+assets were accessed. DS rewind remains unavailable rather than claiming unsupported work.
 
 Branches: `feature/pokedaisy-ds-enhancements` is the integration baseline;
-`feature/ds-input-reliability` contains this first reviewable slice. No upstream writes.
+`feature/ds-input-reliability` holds Phase 1. [Draft PR #1](https://github.com/nikitasokolov01/pokedaisy/pull/1)
+targets the user's fork only. No upstream write or merge has been made.
 
-Implementation commits: `28b356f` fixes Windows manual parsing; `159d816` exposes
-DS X/Y and fixes held-input lifecycle behavior, with tests and manual screenshots.
+Earlier commits: `28b356f` fixes Windows manual parsing; `159d816` exposes DS X/Y and
+fixes initial held-input lifecycle behavior. Subsequent Phase 1 commits extend that slice.
 
 ## Concrete continuation
 
-1. Run the [Thor checklist](VERIFICATION.md#thor-acceptance-checklist-pending), recording
-   the Android button codes if physical labels differ. No device was connected here.
+1. Install the linked debug APK without discarding existing saves/settings and run the
+   [Thor checklist](VERIFICATION.md#thor-acceptance-checklist-pending). Record Android
+   controller identity, button codes, hotkey behavior and both screen orientations.
 2. Resolve the six Windows baseline failures in a separate portability change before
    claiming a clean local full suite. Keep synthetic rollback coverage intact.
-3. Extend `GbaControls` and `GbaInput` with directional bindings and versioned profile
-   storage. Migrate existing `controls.properties` without losing custom bindings;
-   add reset/conflict handling and per-game/device selection before changing defaults.
-4. Decide the delayed-prefix/tap/hold behavior, then update `Hotkeys` and activity
-   event ownership together so shortcut-only input cannot reach a game.
-5. Finish the Phase 1 hardware gate before moving to the lower-screen navigation
-   audit. Exact ROM verification and safe reset/load behavior precede any new modifier.
+3. Proceed with Phase 2's lower-screen navigation, focus and stylus ownership audit.
+   The assignable Phase 1 shortcuts call existing screen behavior; they do not certify
+   the full lower-screen UX gate.
+4. Exact ROM verification and safe reset/load behavior precede any new gameplay modifier.
 
 ## Open product decisions and safety gates
 
 Keep the master brief's unresolved Dupes Clause, encounter categories, post-Gym caps,
 enforcement re-enable, EXP Share interactions, HM possession/history, Gym accessibility
 and rewind pairing decisions open. No new gameplay-changing patch is enabled by this
-work. The first input slice does not satisfy the complete Phase 1 acceptance gate.
+work. Hardware validation remains explicitly separate from the passed synthetic Phase 1 checks.

@@ -110,6 +110,14 @@ interface CompanionSettings {
 
     /** Whether GAME BUTTONS should name the DS's X/Y instead of the GBA's extra START/SELECT. */
     val dsControls: Boolean get() = false
+    val inputControllers: List<com.pokedaisy.app.InputProfileChoice> get() = listOf(com.pokedaisy.app.InputProfileChoice(null, "ALL CONTROLLERS"))
+    val inputController: String? get() = null
+    fun setInputController(id: String?) {}
+    val inputForGame: Boolean get() = false
+    fun setInputForGame(on: Boolean) {}
+    fun resetInputProfile() {}
+    fun acceptsInputDevice(id: Int): Boolean = true
+    val inputProfileError: String? get() = null
 
     /** Current shared game-button bindings, by display name (e.g. "BUTTON_A", "Z"). */
     fun gbaControlBindings(): Map<GbaControls.Btn, List<String>>

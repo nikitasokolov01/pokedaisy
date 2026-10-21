@@ -12,9 +12,8 @@ import java.util.Properties
  *
  * A binding is a comma-separated list of *chords*; a chord is one or more key
  * names joined with `+` (e.g. `BUTTON_SELECT+BUTTON_R1`). A chord fires once,
- * on the press of its last key, while every key in it is held. A key is hidden
- * from the game only while it's completing/holding a chord — so `SELECT` alone
- * still works in-game, but `SELECT+R1` is captured.
+ * on the press of its last key, while every key in it is held. Live input uses
+ * ControllerInputRouter to reserve the first key and replay an unused modifier as a tap.
  *
  * Rebind from the in-app Settings screen or edit the file directly.
  */
@@ -32,7 +31,8 @@ class Hotkeys private constructor(
         // No default keys (not in DEFAULTS): the player binds them.
         RESTART_GAME(tk("RESTART GAME")), CLOSE_APP(tk("CLOSE APP")),
         // Pressed: the QUICK MENU opens or closes (companion.ui.QuickMenu); L3 by default.
-        QUICK_MENU(tk("QUICK MENU"));
+        QUICK_MENU(tk("QUICK MENU")),
+        SWAP_SCREENS(tk("SWAP SCREENS")), COMPANION(tk("COMPANION")), SCREENSHOT(tk("SCREENSHOT"));
 
         val prop get() = name.lowercase()
 
@@ -40,6 +40,7 @@ class Hotkeys private constructor(
         val badge: String? get() = when (this) {
             RESTART_GAME, CLOSE_APP -> NewFeatures.badge(NewFeatures.GAME_HOTKEYS)
             QUICK_MENU -> NewFeatures.badge(NewFeatures.QUICK_MENU)
+            SWAP_SCREENS, COMPANION, SCREENSHOT -> NewFeatures.badge(NewFeatures.DS_CONTROLS)
             else -> null
         }
         val label get() = name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
@@ -123,7 +124,7 @@ class Hotkeys private constructor(
 
         private fun file(filesDir: File) = File(filesDir, "hotkeys.properties")
 
-        private fun readProps(filesDir: File): Properties {
+        private fun readProps(filesDir: File, persistDefaults: Boolean = true): Properties {
             val props = Properties()
             val f = file(filesDir)
             if (f.isFile) {
@@ -134,7 +135,7 @@ class Hotkeys private constructor(
             // X / Y left the state hotkeys for START 2 / SELECT 2: only where nobody changed them.
             for ((k, old) in OLD_DEFAULTS) if (props.getProperty(k) == old) { props.setProperty(k, DEFAULTS.getValue(k)); changed = true }
             for ((k, v) in DEFAULTS) if (!props.containsKey(k)) { props.setProperty(k, v); changed = true }
-            if (changed) writeProps(filesDir, props)
+            if (changed && persistDefaults) writeProps(filesDir, props)
             return props
         }
 
@@ -146,12 +147,17 @@ class Hotkeys private constructor(
             }
         }
 
-        fun load(filesDir: File): Hotkeys {
-            val props = readProps(filesDir)
+        fun load(filesDir: File, persistDefaults: Boolean = true): Hotkeys {
+            val props = readProps(filesDir, persistDefaults)
             val raw = Action.entries.associateWith { a ->
                 props.getProperty(a.prop).orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
             }
             return Hotkeys(raw)
+        }
+
+        fun from(raw: Map<Action, List<String>>) = Hotkeys(raw)
+        fun defaults(): Map<Action, List<String>> = Action.entries.associateWith { values ->
+            DEFAULTS[values.prop].orEmpty().split(',').map(String::trim).filter(String::isNotEmpty)
         }
 
         /** Replace [action]'s binding with the single chord [keyCodes] and persist. */
@@ -167,7 +173,7 @@ class Hotkeys private constructor(
             val chord = chordOf(keyNames.joinToString("+"))
             for (other in takeFrom) if (other != action) {
                 val kept = props.getProperty(other.prop).orEmpty().split(',').map { it.trim() }
-                    .filter { it.isNotEmpty() && chordOf(it) != chord }
+                    .filter { it.isNotEmpty() && !overlap(chordOf(it), chord) }
                 props.setProperty(other.prop, kept.joinToString(", "))
             }
             props.setProperty(action.prop, keyNames.joinToString("+"))
@@ -182,13 +188,18 @@ class Hotkeys private constructor(
         }
 
         /**
-         * The other actions already bound to exactly the chord [keyNames] - the same keys, in any order.
-         * A chord that only shares some keys (SELECT vs SELECT+R1) isn't a clash: that's how chords work.
+         * Equal or subset chords are ambiguous. Two chords may share a modifier without containing each other.
          */
         fun clashes(raw: Map<Action, List<String>>, action: Action, keyNames: Collection<String>): List<Action> {
             val chord = chordOf(keyNames.joinToString("+"))
             if (chord.isEmpty()) return emptyList()
-            return raw.filter { (other, chords) -> other != action && chords.any { chordOf(it) == chord } }.keys.toList()
+            return raw.filter { (other, chords) -> other != action && chords.any { overlap(chordOf(it), chord) } }.keys.toList()
+        }
+
+        fun overlap(a: Set<String>, b: Set<String>) = a.isNotEmpty() && b.isNotEmpty() && (a.containsAll(b) || b.containsAll(a))
+
+        fun conflicted(raw: Map<Action, List<String>>, action: Action) = raw[action].orEmpty().any {
+            clashes(raw, action, it.split('+')).isNotEmpty()
         }
 
         private fun chordOf(s: String): Set<String> =
@@ -196,10 +207,11 @@ class Hotkeys private constructor(
 
         /** Human name for a keycode (e.g. 96 -> "BUTTON_A"). */
         fun keyName(keyCode: Int): String =
-            KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_")
+            InputCodes.name(keyCode) ?: KeyEvent.keyCodeToString(keyCode).removePrefix("KEYCODE_")
 
         private fun resolveKey(name: String): Int? {
             if (name.isEmpty()) return null
+            InputCodes.named[name.uppercase()]?.let { return it }
             return runCatching {
                 KeyEvent::class.java.getField("KEYCODE_$name").getInt(null)
             }.onFailure { Log.w("pokedaisy", "unknown hotkey key: $name") }.getOrNull()

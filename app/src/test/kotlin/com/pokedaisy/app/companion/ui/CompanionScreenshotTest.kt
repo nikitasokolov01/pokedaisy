@@ -1730,8 +1730,15 @@ open class CompanionScreenshotTest {
         val settings = object : CompanionSettings by SampleCompanion.Settings() {
             override val dsControls = true
             override val gameName = "DS TEST GAME"
+            override val inputForGame = true
+            override val inputController = "preview-thor"
+            override val inputControllers = listOf(com.pokedaisy.app.InputProfileChoice(null, "ALL CONTROLLERS"), com.pokedaisy.app.InputProfileChoice("preview-thor", "AYN Thor (preview)"))
         }
         CompanionScreen(SampleCompanion.snapshot, SampleCompanion.Slots, settings, initialTab = "SETTINGS", initialSettingsPage = "BUTTONS")
+    }
+
+    @Test fun dsTouchFallback() = paparazzi.snapshot {
+        TouchControls(com.pokedaisy.app.companion.TouchControlsStyle(ds = true), portrait = false, input = TouchInput())
     }
 
     /** SETTINGS > CHEATS: the master switch and a game's three cheats, then a game with none. */

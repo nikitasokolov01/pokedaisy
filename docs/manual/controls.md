@@ -21,17 +21,30 @@ The button settings live in the `CONTROLS` group, on both screens: the top scree
 | `START` and `SELECT` | START and SELECT |
 | `DS X / GBA START 2` and `DS Y / GBA SELECT 2` | X and Y |
 | `TURBO A` and `TURBO B` | Nothing |
+| `UP`, `DOWN`, `LEFT` and `RIGHT` | D-pad and left stick directions |
 
-On DS, these bindings press the game's X and Y. On GB, GBC and GBA, they press a second START and SELECT instead. Settings are currently shared across games: changing DS X also changes the extra START binding for those systems. Your existing bindings carry over. The other game buttons also have keyboard keys (Z, X, A, S, Enter and so on).
+On DS, these bindings press the game's X and Y. On GB, GBC and GBA, they press a second START and SELECT instead. Your existing bindings carry over. The other game buttons also have keyboard keys (Z, X, A, S, Enter and so on). Use a game profile if you want different controls for a DS game.
 
-To change one, tap its row (it says `PRESS A BUTTON…`) and press the button you want on your device. That works the same on the top screen and on the companion: there, while a row waits, the game's screen shows a window asking for the button and the keys you hold. `CANCEL`, or `BACK`, leaves the button as it was. `TURBO A` and `TURBO B` also get `CLEAR`, which takes them off every button again.
+To change one, tap its row (it says `PRESS A BUTTON…`) and press the button you want on your device, or move the left stick in a direction and let it return to the middle. That works the same on the top screen and on the companion: there, while a row waits, the game's screen shows a window asking for the button and the keys you hold. `CANCEL`, or `BACK`, leaves the button as it was. Every row offers `CLEAR` to leave that game button unbound.
 
-The new button replaces everything that game button had, keyboard key included. A button can only do one game button: put it on a new one and it leaves the old one. Rebinding releases any buttons you were holding, so an old binding cannot stay pressed.
+The new button replaces everything that game button had, including keyboard keys and stick directions. A physical input can only do one game button. If it is already used, `KEY IN USE` asks you to `MOVE` it or cancel. Rebinding releases any buttons you were holding, so an old binding cannot stay pressed. Hotkeys take priority over game buttons: clear a single-button hotkey or turn `HOTKEYS` off to use that button for the game.
 
 > [!NOTE]
 > Buttons go by Android's names, which follow an Xbox controller's layout. On AYN and Retroid devices, `A` is the bottom face button even where the printed label says something else. If A and B feel swapped, swap them here.
 
-The D-pad and the analog stick always move; they can't be remapped. First-time setup has a page listing these buttons too, and you change them right there the same way.
+All four D-pad directions and left stick directions can be rebound. First-time setup has a page listing the game buttons too, and you change them there the same way.
+
+### Controller and game profiles
+
+At the top of `GAME BUTTONS` and `HOTKEYS`, tap `CONTROLLER PROFILE` to cycle through `ALL CONTROLLERS` and the connected controllers. Choose your AYN Thor's built-in controller to change its bindings independently of a USB or Bluetooth pad. Names come from Android. A short identifier distinguishes controllers with the same name. Only the selected controller can supply a binding while its profile is open. If Android cannot identify a controller reliably, it uses `ALL CONTROLLERS`.
+
+Library Settings changes defaults for all games. In a game's companion, `APPLIES TO` switches between `THIS GAME` and `ALL GAMES`. A game starts with the shared defaults, then its controller defaults, then this game's shared changes, then this game's changes for that controller. A more specific row replaces the inherited row. These settings survive relaunch and reconnect, even when Android gives the controller a new temporary device number.
+
+If the controller you were editing disconnects, its selected profile shows `OFFLINE`. Tap `CONTROLLER PROFILE` to choose a connected controller or the shared defaults, or reconnect it to capture new buttons.
+
+`RESET PROFILE` asks before resetting. For `ALL GAMES` and `ALL CONTROLLERS`, it restores factory buttons and hotkeys. For a game or controller, it removes that profile's overrides and uses the inherited settings again. Touch can select a profile, cancel capture, clear a binding and reset the profile.
+
+If separate profile changes combine into duplicate bindings, the affected rows show `KEY IN USE` and the ambiguous inputs stay inactive. Rebind or clear those rows in the combined game/controller profile. If a saved profile cannot be read, the app reports it and uses inherited settings; it keeps the unreadable file instead of overwriting it.
 
 ![The top screen's GAME BUTTONS page, including DS X and DS Y alongside the shared bindings](shots/settings-buttons.png "GAME BUTTONS on the top screen")
 
@@ -45,7 +58,7 @@ Turbo counts in game time, so with fast-forward on it mashes faster along with t
 
 Hotkeys are shortcuts for things outside the game: save states, fast-forward, leaving the game. A hotkey can be one button or a **chord**, several buttons pressed together. SELECT + R1 is a chord: the second button fires it while the first is held.
 
-Chords don't take a button away from the game. SELECT alone still works in game; only SELECT + R1 together saves a state.
+For a chord, **press its first listed button first**. That button waits for the shortcut while held. Tap it alone and the game receives a short press when you release it. For example, hold SELECT then press R1 to save; tap SELECT alone to press SELECT in the game. Holding R1 first still presses the game's R button and cannot become a save shortcut afterward. If a game needs to hold SELECT, clear the chords that start with SELECT or turn `HOTKEYS` off. A completed shortcut sends none of its buttons to the game.
 
 | Hotkey | What it does | Controller | Keyboard |
 | --- | --- | --- | --- |
@@ -66,8 +79,13 @@ Chords don't take a button away from the game. SELECT alone still works in game;
 | `RESTART GAME` | Starts the game again from its save, like `RESTART GAME` in the companion's `SETTINGS` | | |
 | `CLOSE APP` | Leaves the game (it saves as usual) and closes PokeDaisy completely, so it's gone from your recent apps | | |
 | `QUICK MENU` | Opens the [quick menu](#the-quick-menu), or closes it | L3 (shown as `THUMBL`) | |
+| `SWAP SCREENS` | Exchanges the two displays, when a second display is available | | |
+| `COMPANION` | Switches the DS lower screen between the touch screen and companion; on one screen, opens or closes the companion panel | | |
+| `SCREENSHOT` | Saves the current game picture; on DS, includes both game screens | | |
 
 `RESTART GAME` and `CLOSE APP` have no buttons until you give them some.
+
+`SWAP SCREENS`, `COMPANION` and `SCREENSHOT` also start unbound. Screenshots are PNG files in the app's external files folder under `screenshots`, alongside its `states` folder. `REWIND HOLD` shows `N/A` in DS games because this core integration does not support DS rewind.
 
 The speed hotkeys are explained in [Fast-forward and game speed](fast-forward.md), states and rewind in [Saves](saves.md), and zoom in [Screen](screen.md).
 
@@ -92,7 +110,7 @@ The new buttons replace the hotkey's whole binding, keyboard key included.
 
 ### When a button is already taken
 
-If you pick exactly the buttons another hotkey already has (the same buttons in any order), you get `KEY IN USE`. Tap `MOVE` to take them from the other hotkey, or cancel to leave both as they were. Sharing only some buttons is fine: SELECT + R1 and SELECT + L1 can both exist, that's how chords work.
+If you pick the buttons another hotkey already has, or a smaller combination contained in another hotkey, you get `KEY IN USE`. Tap `MOVE` to remove the conflicting combinations from the other hotkeys, or cancel to leave them as they were. Sharing only a modifier is fine: SELECT + R1 and SELECT + L1 can both exist. A chord must come from one controller; holding SELECT on one pad and R1 on another cannot trigger it.
 
 ### Turning hotkeys off
 
@@ -130,6 +148,8 @@ To use another button, change the `QUICK MENU` hotkey.
 ## Touch controls
 
 `TOUCH CONTROLS` puts on-screen buttons over the game, for when you have no real ones: a phone, or a tablet without a controller. It's a page of its own in the `CONTROLS` group, on both screens. At its top, a picture of your screen shows the buttons as they are now, and it changes as soon as you change a setting. Upright it shows the part of the screen around the buttons, so they come out bigger. The button under it says which way the phone is held in the picture (`UPRIGHT` or `SIDEWAYS`); tap it to see the other. Tap any setting on the page to step to its next choice.
+
+DS games also show touch buttons for X and Y. These press the DS buttons directly and keep working even if a physical controller profile is cleared.
 
 ![TOUCH CONTROLS on a phone held upright: the preview of the screen with the buttons, then the settings](shots/settings-touch-phone.png "TOUCH CONTROLS on a phone")
 
@@ -198,7 +218,7 @@ It works on the Game Boy Advance originals in every language and on almost every
 
 Bluetooth and USB controllers (8BitDo, GameSir, Xbox and so on) work, and you can connect one while a game is running without restarting it. A short message on the game screen says when a controller connects or goes away. Its buttons follow `GAME BUTTONS` and `HOTKEYS` like the built-in ones, and diagonals on its D-pad press both directions.
 
-When an input device disconnects, the app loses focus, or you suspend it, held game buttons and held shortcuts are released. Press again to continue. This currently releases all controllers together. A fast-forward setting you toggled on stays on; a held fast-forward shortcut stops. With touch controls set to `AUTO`, the existing touch buttons return when no controller remains.
+Disconnecting a controller releases its own game buttons and held shortcuts. Another connected controller can keep holding its buttons. Focus loss or suspend releases all player input. Press again to continue. A fast-forward setting you toggled on stays on; a held fast-forward shortcut stops after its last controller lets go. With touch controls set to `AUTO`, the touch buttons return when no controller remains.
 
 A controller's HOME or guide button, unless you've bound it to something, works like a tap of `BACK` (see below).
 

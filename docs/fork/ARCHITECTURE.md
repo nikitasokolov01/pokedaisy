@@ -5,7 +5,7 @@ Source: the user's fork, `https://github.com/nikitasokolov01/pokedaisy`, whose p
 `lidor30/pokedaisy`. The connected account owns the fork and reports push permission.
 The workspace was empty; the fork was cloned with `origin` pointing only to the fork.
 
-## Current architecture and evidence
+## Baseline architecture and evidence
 
 - Android Kotlin/Compose application (`app/build.gradle.kts`), one process with JNI
   (`MgbaCore.kt`, `app/src/main/cpp/pokedaisy_jni.c`). Gradle 8.10.2, AGP 8.5.2,
@@ -66,3 +66,36 @@ Expose explicit DS labels, make held input release reliable and verify the curre
 DS/GBA mapping contract first. Then add directional remapping, profile persistence and chord
 isolation. Do not add gameplay hooks until ROM identity, reset/load behavior and
 synthetic safety tests are independently established. See IMPLEMENTATION_STATUS.md.
+
+## Phase 1 implementation
+
+`ControllerDevices` derives persistent profile keys from Android's nonvirtual device
+descriptor, never the runtime integer ID. Empty or duplicated descriptors use shared
+defaults. `InputProfiles` reads the old properties without rewriting them and overlays
+versioned sparse settings in this order: global/shared, global/device, game/shared,
+game/device. Game keys reuse the existing ROM CRC identity; this is a settings identity,
+not the cryptographic ROM verification required for gameplay patches. Profile files live
+under `input-profiles/v1`, with hashed filenames and same-directory temporary writes,
+file sync and replace. Directory sync is attempted where the host supports it. Unknown
+schema versions remain untouched and settings UI reports inherited fallback.
+
+Both `KeyCapture` and `ControllerInputRouter` merge digital and analog reports per
+device. Hats map to the physical D-pad names; left stick directions use distinct
+`STICK_*` names; triggers use L2/R2. `GbaInput` owns keys by (device, code), combines
+touch/script channels and returns a frame mask. No legacy analog path bypasses remapping.
+The engine calls the existing JNI function with that mask; `nds/input_mask.h` is used
+by the actual core adapter and a synthetic compile-time native contract test in CI.
+
+`ShortcutRouter` reserves each chord's first listed key. Tap an unused modifier to
+replay a two-emulated-frame game press on release. Its hold is reserved; ordinary
+non-modifier shoulder holds remain immediate. A key already delivered to the game
+cannot later complete a shortcut. Equal/subset shortcuts are conflicts; UI asks before
+moving them. Imported/combined ambiguous mappings fail closed and show KEY IN USE.
+Chords stay device-local, and held actions are reference-counted across controllers.
+Opening UI stops the remaining game edges of that event; quick-menu routing retains
+shortcut releases so the next press works. Focus loss and rebind cancel player input.
+
+New unbound actions invoke existing display-swap and companion switching, or queue a
+PNG capture after a completed emulation frame. DS capture includes both real screens.
+DS rewind remains unavailable. Touch fallback includes DS X/Y independently of physical
+profiles. Full lower-display focus/navigation and stylus ownership remain Phase 2.

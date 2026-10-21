@@ -200,7 +200,7 @@ fun TouchControls(
                         if (newly != 0 || (dpad and pressed.dpad.inv()) != 0) currentInput.onPress()
                         for (b in TouchButton.entries) {
                             val bit = 1 shl b.ordinal
-                            if (b.extra && b != TouchButton.TURBO_A && b != TouchButton.TURBO_B && (held xor before) and bit != 0) {
+                            if (b.extra && b.gba == 0 && (held xor before) and bit != 0) {
                                 currentInput.onAction(b, held and bit != 0)
                             }
                         }
