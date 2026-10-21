@@ -81,6 +81,12 @@ No device was connected and no ROM, BIOS or user-save asset was used. Adapter co
 were exercised with synthetic memory only. Native hooks and live Thor validation
 remain prerequisites for Phase 4; this is not gameplay certification.
 
+[Draft PR #3](https://github.com/nikitasokolov01/pokedaisy/pull/3) targets the fork's
+integration branch and includes the Phase 1/2 prerequisites until those PRs merge.
+Implementation commit: `47ec1ad943309d817439ad1146b5cd099fcc6382`.
+Local debug APK: `build/fork-review/pokedaisy-phase3-47ec1ad-debug.apk`.
+APK checksum and device steps are in [VERIFICATION.md](VERIFICATION.md).
+
 ## Evidence and limitations
 
 Phase 1 is implemented and verified with synthetic inputs and rendered UI. The final

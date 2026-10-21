@@ -257,6 +257,15 @@ Ordinary core shutdown still finishes SRAM saves; failed rollback prevents furth
 game frames. Existing bounded shutdown timeouts remain and need native-adapter tests
 before admitting a real hook. Existing cheats and legacy gameplay options are separate.
 
+Handoff source commit: `47ec1ad943309d817439ad1146b5cd099fcc6382`.
+[Draft PR #3](https://github.com/nikitasokolov01/pokedaisy/pull/3) targets the fork's
+integration branch and includes the unmerged Phase 1 and Phase 2 prerequisites.
+Local APK: `build/fork-review/pokedaisy-phase3-47ec1ad-debug.apk` (37,336,846 bytes).
+SHA-256: `c0f2241718a5e75d0b2959f4c5df3e1f56f19e50964ef5dd0625d31dc6b31d29`.
+The committed-source build passed in `phase3-handoff-build.log`; packaged DEX was
+checked for the fingerprint, guarded runtime and enhancement-page classes. The APK
+is ignored and is not included in Git. Later handoff documentation does not change it.
+
 ### Phase 3 Thor settings acceptance checklist (pending)
 
 1. Keep existing app data while installing the debug build. For a legal DS game,
