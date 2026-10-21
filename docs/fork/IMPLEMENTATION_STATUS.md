@@ -37,12 +37,20 @@ pages before returning to the DS touch screen, and START returns directly. The
 COMPANION shortcut and touch switch preserve the selected lower mode. The DS
 switch bar reserves space outside the stylus image at all tested aspect ratios.
 
-The initial 44 focused regression checks passed, as did the five desktop UI scenarios
-(four screen sizes plus explicit text entry), translations and eight manual/search
-checks. Android host validation and the final full-suite result are recorded in
-[VERIFICATION.md](VERIFICATION.md). No Android device is connected. Hardware focus,
+The final 71 focused regression checks passed, including real Android host touch and
+Compose focus dispatch. Five desktop UI scenarios (four screen sizes plus explicit
+text entry), translations and eight manual/search checks also passed. The full suite
+recorded 2,710 passes, the same six Windows baseline failures and 192 skips. The final
+review corrections were checked by the subsequent focused rerun. Evidence, APK hash
+and hardware checklist are in [VERIFICATION.md](VERIFICATION.md). No Android device
+is connected. Hardware focus,
 lid sleep, native core/stylus behavior and Android keyboard behavior are unverified.
 The existing DS single-screen limitation remains: only the top game image is available.
+
+[Draft PR #2](https://github.com/nikitasokolov01/pokedaisy/pull/2) targets the fork's
+integration branch and includes the unmerged Phase 1 prerequisite from PR #1.
+Implementation commit: `7858280e9042943a5a466c7e0e448581965856f3`.
+Local debug APK: `build/fork-review/pokedaisy-phase2-7858280-debug.apk`.
 
 ## Evidence and limitations
 

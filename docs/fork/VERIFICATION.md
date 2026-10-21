@@ -158,6 +158,8 @@ Evidence retained under the ignored `build/fork-review/` directory:
 | Check | Evidence / scope |
 | --- | --- |
 | Initial focused Android tests | 44 passed, zero failures/skips; `phase2-build-tests.log` and `phase2-focused-results/` |
+| Final committed-source tests and APK | 71 passed, zero failures/errors/skips; `phase2-final-tests.log` and `phase2-final-results/`; includes both Android host/focus tests and the final review corrections |
+| Full Android suite | 2,908 tests: 2,710 passed, six known Windows baseline failures, 192 skipped; `phase2-full-tests.log` and `phase2-full-results/` |
 | Actual Android host/stylus | `NdsBottomHostTest`: real FrameLayout/MotionEvent routing with a recording JNI sink; switch cancels touch, hidden moves are rejected, geometry excludes the switch bar |
 | Actual Android focus adapter | `NdsBottomHostTest`: a D-pad event selects the second real Compose button and A activates it; hidden companion focus dispatch is rejected |
 | Desktop companion interactions | `phase2-navigation-ui.log`: four sizes (1240x1080 @ 2.625, 1280x960 @ 2, 1920x1080 @ 2, 720x640 @ 2), controller A, touch selector, B, L/R; explicit text-entry activation/back scenario also passed |
@@ -171,6 +173,23 @@ D-pad search. The Android test separately exercises that View adapter, but layou
 cannot reproduce the Thor's second-display window manager. The real stylus sink in
 the APK remains JNI `pkNdsTouch`; the integration test records its calls rather than
 booting a copyrighted game. These are software checks, not a hardware acceptance pass.
+
+The full suite reproduced the same six failures listed in the Windows baseline:
+PerformanceGuardsTest, RomAddedTest, SaveFileEditsTest, SiteDataExportTest and two
+BestEffortTest cases. It finished before the last review corrections; the final
+focused run recorded above checks the committed corrections. No new failure was found in
+the full run, but it is not a clean full-suite pass.
+
+Handoff source commit: `7858280e9042943a5a466c7e0e448581965856f3`.
+[Draft PR #2](https://github.com/nikitasokolov01/pokedaisy/pull/2) targets the fork's
+integration branch and includes Phase 1 until PR #1 is merged there.
+Local APK: `build/fork-review/pokedaisy-phase2-7858280-debug.apk` (37,336,787 bytes).
+SHA-256: `1d5816d8a3278a0bbc6b65dcb919f1b0072fb2d5622cc9e05976e8943d30b95d`.
+The committed-source `:app:assembleDebug` completed successfully in
+`build/fork-review/phase2-final-tests.log`. The packaged DEX contains the new
+navigation and touch classes. The APK is ignored, not committed.
+The final manual/search rerun passed all eight checks, translations again reported
+zero issues, and `phase2-website-final.log` records a successful 28-page local build.
 
 ### Phase 2 Thor acceptance checklist (pending)
 
