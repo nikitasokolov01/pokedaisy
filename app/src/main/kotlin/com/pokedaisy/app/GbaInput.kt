@@ -6,9 +6,8 @@ import android.view.MotionEvent
 import kotlin.math.abs
 
 /**
- * Translates Android key/motion events into a live GBA key bitmask. Face /
- * shoulder / menu buttons are remappable via [setControls] (GbaControls); the
- * D-pad and analog stick are fixed.
+ * Combines remapped device keys, touchscreen and script input into the active core's mask.
+ * ControllerInputRouter merges analog/digital reports before they reach this class.
  */
 class GbaInput {
     @Volatile
@@ -17,11 +16,12 @@ class GbaInput {
 
     private var buttonBits = 0   // from key events: the bits of every key in heldKeys
     private var turboBits = 0    // TURBO A / B held: pulsed by the engine ([turboMask])
-    private val turboKeys = HashMap<Int, Int>()
+    private val turboKeys = HashMap<Pair<Int, Int>, Int>()
     // Per key, not per bit: START and START 2 (X) are two keys for one bit, and
     // letting go of one mustn't release the other.
-    private val heldKeys = HashMap<Int, Int>()
-    private var hatBits = 0      // from D-pad HAT / analog axes
+    private val heldKeys = HashMap<Pair<Int, Int>, Int>()
+    private val deviceControls = HashMap<Int, Map<Int, Int>>()
+    private val pulses = HashMap<Pair<Int, Int>, Pair<Int, Int>>()
     private var touchBits = 0    // from the on-screen TouchControlsView
     private var scriptBits = 0   // synthetic presses (BattleInputController)
     private var scriptExclusive = false
@@ -29,20 +29,33 @@ class GbaInput {
     @Volatile
     private var controls: Map<Int, Int> = DEFAULT_CONTROLS
 
-    fun setControls(map: Map<Int, Int>) { controls = map }
+    @Synchronized fun setControls(map: Map<Int, Int>) {
+        controls = map.toMap()
+        deviceControls.clear()
+        // Releases may arrive after a rebind removed their old key, or be swallowed by capture.
+        releaseAll()
+    }
 
     /** A DS game runs: START 2 / SELECT 2 ([GbaControls.DS_X] / [GbaControls.DS_Y]) press its X / Y. */
     @Volatile var ds = false
+        set(value) {
+            if (field == value) return
+            field = value
+            releaseAll()
+        }
 
     /** @return true if the event was consumed. */
-    fun onKey(keyCode: Int, down: Boolean): Boolean {
-        val bit = keyToBit(keyCode) ?: return false
+    @Synchronized fun setDeviceControls(device: Int, map: Map<Int, Int>) { deviceControls[device] = map.toMap() }
+
+    @Synchronized fun onKey(keyCode: Int, down: Boolean, device: Int = 0): Boolean {
+        val key = device to keyCode
+        val bit = keyToBit(keyCode, device) ?: return false
         if (bit and GbaControls.TURBO != 0) {
-            if (down) turboKeys[keyCode] = bit and GbaControls.TURBO.inv() else turboKeys.remove(keyCode)
+            if (down) turboKeys[key] = bit and GbaControls.TURBO.inv() else turboKeys.remove(key)
             turboBits = turboKeys.values.fold(0) { acc, b -> acc or b }
             return true
         }
-        if (down) heldKeys[keyCode] = bit else heldKeys.remove(keyCode)
+        if (down) heldKeys[key] = bit else heldKeys.remove(key)
         buttonBits = heldKeys.values.fold(0) { acc, b -> acc or b }
         recompute()
         return true
@@ -50,16 +63,41 @@ class GbaInput {
 
     /** The GBA button [keyCode] is bound to (D-pad, or the player's GAME BUTTONS; a TURBO key counts as its button),
      * null = none. The companion's window reads keys through this, so it follows the player's bindings. */
-    fun buttonFor(keyCode: Int): Int? = keyToBit(keyCode)?.let { it and GbaControls.TURBO.inv() }
+    @Synchronized fun buttonFor(keyCode: Int, device: Int = 0): Int? = keyToBit(keyCode, device)?.let { it and GbaControls.TURBO.inv() }
+
+    /** Deferred modifier tap lasts two emulated frames, even under fast-forward. */
+    @Synchronized fun tap(keyCode: Int, device: Int) {
+        val bit = keyToBit(keyCode, device)?.and(GbaControls.TURBO.inv()) ?: return
+        pulses[device to keyCode] = bit to 2
+        recompute()
+    }
+
+    @Synchronized fun frameMask(): Int {
+        val out = mask
+        val remaining = pulses.mapValues { it.value.first to it.value.second - 1 }.filterValues { it.second > 0 }
+        pulses.clear(); pulses.putAll(remaining)
+        recompute()
+        return out
+    }
+
+    @Synchronized fun releaseDevice(device: Int) {
+        heldKeys.keys.removeAll { it.first == device }
+        turboKeys.keys.removeAll { it.first == device }
+        pulses.keys.removeAll { it.first == device }
+        deviceControls.remove(device)
+        buttonBits = heldKeys.values.fold(0, Int::or)
+        turboBits = turboKeys.values.fold(0, Int::or)
+        recompute()
+    }
 
     /** Lets go of every key the player holds (not a script's): the companion's window took the buttons, or a rebind
      *  the keys' releases. */
-    fun releaseAll() {
+    @Synchronized fun releaseAll() {
         heldKeys.clear()
         turboKeys.clear()
+        pulses.clear()
         buttonBits = 0
         turboBits = 0
-        hatBits = 0
         touchBits = 0
         touchTurboBits = 0
         recompute()
@@ -72,7 +110,7 @@ class GbaInput {
     @Volatile private var touchTurboBits = 0
 
     /** The touch controls' GBA buttons held ([bits]) and their TURBO A / B ([turbo], pulsed like [turboMask]). */
-    fun setTouchBits(bits: Int, turbo: Int = 0) {
+    @Synchronized fun setTouchBits(bits: Int, turbo: Int = 0) {
         touchBits = bits
         touchTurboBits = turbo
         recompute()
@@ -84,7 +122,7 @@ class GbaInput {
      * buttons, D-pad, touch controls - are ignored, so they can't knock the
      * sequence off course; they count again the moment it ends.
      */
-    fun setScript(bits: Int, exclusive: Boolean) {
+    @Synchronized fun setScript(bits: Int, exclusive: Boolean) {
         scriptBits = bits
         scriptExclusive = exclusive
         recompute()
@@ -94,32 +132,24 @@ class GbaInput {
      * apart from [setScript]'s channel, which the battle controls send every frame (they'd wipe it). */
     @Volatile private var pressBits = 0
 
-    fun setPress(bits: Int) {
+    @Synchronized fun setPress(bits: Int) {
         pressBits = bits
         recompute()
     }
 
-    fun onMotion(event: MotionEvent): Boolean {
-        hatBits = motionBits(event) ?: return false
-        recompute()
-        return true
-    }
-
     private fun recompute() {
-        mask = (if (scriptExclusive) scriptBits else buttonBits or hatBits or touchBits or scriptBits) or pressBits
+        val taps = pulses.values.fold(0) { bits, tap -> bits or tap.first }
+        mask = (if (scriptExclusive) scriptBits else buttonBits or touchBits or scriptBits or taps) or pressBits
     }
 
-    private fun keyToBit(keyCode: Int): Int? = when (keyCode) {
-        KeyEvent.KEYCODE_DPAD_UP -> MgbaCore.Key.UP
-        KeyEvent.KEYCODE_DPAD_DOWN -> MgbaCore.Key.DOWN
-        KeyEvent.KEYCODE_DPAD_LEFT -> MgbaCore.Key.LEFT
-        KeyEvent.KEYCODE_DPAD_RIGHT -> MgbaCore.Key.RIGHT
+    private fun keyToBit(keyCode: Int, device: Int = 0): Int? =
+        (deviceControls[device] ?: controls)[keyCode]?.let(::forCore) ?: when (keyCode) {
         // Some controllers (8BitDo, GameSir in a few modes) send a diagonal as one key.
-        KeyEvent.KEYCODE_DPAD_UP_LEFT -> MgbaCore.Key.UP or MgbaCore.Key.LEFT
-        KeyEvent.KEYCODE_DPAD_UP_RIGHT -> MgbaCore.Key.UP or MgbaCore.Key.RIGHT
-        KeyEvent.KEYCODE_DPAD_DOWN_LEFT -> MgbaCore.Key.DOWN or MgbaCore.Key.LEFT
-        KeyEvent.KEYCODE_DPAD_DOWN_RIGHT -> MgbaCore.Key.DOWN or MgbaCore.Key.RIGHT
-        else -> controls[keyCode]?.let(::forCore)   // remappable face/shoulder/menu buttons
+        KeyEvent.KEYCODE_DPAD_UP_LEFT -> (keyToBit(19, device) ?: 0) or (keyToBit(21, device) ?: 0)
+        KeyEvent.KEYCODE_DPAD_UP_RIGHT -> (keyToBit(19, device) ?: 0) or (keyToBit(22, device) ?: 0)
+        KeyEvent.KEYCODE_DPAD_DOWN_LEFT -> (keyToBit(20, device) ?: 0) or (keyToBit(21, device) ?: 0)
+        KeyEvent.KEYCODE_DPAD_DOWN_RIGHT -> (keyToBit(20, device) ?: 0) or (keyToBit(22, device) ?: 0)
+        else -> null
     }
 
     /** A binding's bits for the game running: START 2 / SELECT 2 are X / Y on a DS, else START / SELECT. */
@@ -152,6 +182,7 @@ class GbaInput {
         }
 
         private val DEFAULT_CONTROLS = mapOf(
+            19 to MgbaCore.Key.UP, 20 to MgbaCore.Key.DOWN, 21 to MgbaCore.Key.LEFT, 22 to MgbaCore.Key.RIGHT,
             KeyEvent.KEYCODE_BUTTON_A to MgbaCore.Key.A, KeyEvent.KEYCODE_Z to MgbaCore.Key.A,
             KeyEvent.KEYCODE_BUTTON_B to MgbaCore.Key.B, KeyEvent.KEYCODE_X to MgbaCore.Key.B,
             KeyEvent.KEYCODE_BUTTON_L1 to MgbaCore.Key.L, KeyEvent.KEYCODE_A to MgbaCore.Key.L,

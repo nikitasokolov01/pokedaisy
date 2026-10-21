@@ -46,6 +46,9 @@ jobs:
       - name: Translations
         run: python3 scripts/check_translations.py
 
+      - name: DS native input contract
+        run: '"$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++" --target=aarch64-linux-android26 -std=c++17 -fsyntax-only app/src/test/native/nds_input_contract_test.cpp'
+
       # ROM-backed tests skip here (no ROMs in CI - they run on the release runner);
       # fixtures, guards, Paparazzi renders and everything else run.
       - name: Unit tests
