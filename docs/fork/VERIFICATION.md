@@ -323,3 +323,13 @@ policy decisions, separate HG/SS capability matrix and unexecuted game/device
 acceptance procedures are in [HGSS_MECHANICS.md](HGSS_MECHANICS.md). Pending soft-cap
 and HM possession proposals remain explicit arguments, not silently selected defaults.
 Phase 4 cannot pass its native/gameplay gate with only these synthetic rule checks.
+
+Handoff source commit: `e3994fc4a8ae4bc00022787ee06b00b048fa2bb2`.
+[Draft PR #4](https://github.com/nikitasokolov01/pokedaisy/pull/4) targets the fork's
+integration branch and includes the earlier-phase prerequisites until merged.
+Local APK: `build/fork-review/pokedaisy-phase4-e3994fc-debug.apk` (37,336,846 bytes).
+SHA-256: `65d9371219cbc2a24297b8b5f63510c5af6fed0026c51a0c4d9cb1606e7a7b80`.
+The committed-source build passed in `phase4-handoff-build.log`; packaged DEX was
+checked for all four HGSS rule classes. The APK is ignored and is not included in
+Git. Later handoff documentation does not change it. All four enhancement settings
+remain N/A in this build; it is not a gameplay-enabled Phase 4 release.

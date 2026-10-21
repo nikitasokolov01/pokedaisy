@@ -114,6 +114,12 @@ passed the later focused run. The source verifier reproduced the growth/HM metad
 and rejected deliberate source drift. The Android debug build and translation check
 passed. Detailed evidence and limitations are in [VERIFICATION.md](VERIFICATION.md).
 
+[Draft PR #4](https://github.com/nikitasokolov01/pokedaisy/pull/4) contains this partial
+Phase 4 work on the fork integration branch. The review APK is
+`build/fork-review/pokedaisy-phase4-e3994fc-debug.apk`, built from source commit
+`e3994fc4a8ae4bc00022787ee06b00b048fa2bb2`; its checksum and size are recorded in
+[VERIFICATION.md](VERIFICATION.md). The new mechanics remain disconnected in it.
+
 ## Evidence and limitations
 
 Phase 1 is implemented and verified with synthetic inputs and rendered UI. The final
