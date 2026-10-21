@@ -1,6 +1,6 @@
 # PokeDaisy fork implementation status
 
-Last updated: 2026-10-20. Requirements: [master brief](MASTER_PROMPT.md).
+Last updated: 2026-10-21. Requirements: [master brief](MASTER_PROMPT.md).
 Architecture: [audit](ARCHITECTURE.md). Independent review: [log](REVIEW_LOG.md).
 
 ## Phase checklist
@@ -17,11 +17,32 @@ Architecture: [audit](ARCHITECTURE.md). Independent review: [log](REVIEW_LOG.md)
   - [x] Per-device releases, duplicate analog/digital report merging and DS X/Y touch fallback.
   - [x] Profile, routing, capture, GBA regression and native DS mask contract tests.
   - [ ] Live AYN Thor / USB / Bluetooth acceptance and suspend/two-display checks.
-- [ ] Phase 2: audit lower-screen ownership, add assignable switching, verify themed navigation.
+- [x] Phase 2 implementation and synthetic navigation checks.
+  - [x] Exclusive lower-screen switch mode, assignable shortcut and persistent touch affordance.
+  - [x] Controller focus, remapped directions/actions, repeat, tab switching, back and direct return.
+  - [x] Reserved stylus geometry, pointer ownership, hide/resize/suspend cancellation.
+  - [x] Explicit text entry, original theme and Thor/4:3/wide/compact layout checks.
+  - [ ] Live Thor display focus, lid sleep, rotation, keyboard and real-game stylus acceptance.
 - [ ] Phase 3: exact ROM verification, capabilities, per-game settings and fail-closed patch lifecycle.
 - [ ] Phase 4: independently verified EXP Share, caps/accessibility, text speed and HM actions.
 - [ ] Phase 5: tracker/rule decisions, transactional challenge snapshots, optional enforcement/dashboard.
 - [ ] Phase 6: expand verified adapters to Platinum, then Gen 5; separate playback/companion/modifiers.
+
+## Phase 2 handoff
+
+Branch `feature/ds-companion-navigation` builds on the Phase 1 branch. The lower
+companion now owns controller navigation while visible. The top game continues
+running; hidden surfaces receive no routed player input. B/device BACK unwind its
+pages before returning to the DS touch screen, and START returns directly. The
+COMPANION shortcut and touch switch preserve the selected lower mode. The DS
+switch bar reserves space outside the stylus image at all tested aspect ratios.
+
+The initial 44 focused regression checks passed, as did the five desktop UI scenarios
+(four screen sizes plus explicit text entry), translations and eight manual/search
+checks. Android host validation and the final full-suite result are recorded in
+[VERIFICATION.md](VERIFICATION.md). No Android device is connected. Hardware focus,
+lid sleep, native core/stylus behavior and Android keyboard behavior are unverified.
+The existing DS single-screen limitation remains: only the top game image is available.
 
 ## Evidence and limitations
 
@@ -64,9 +85,8 @@ routing, touch fallback, actions, tests and documentation.
    controller identity, button codes, hotkey behavior and both screen orientations.
 2. Resolve the six Windows baseline failures in a separate portability change before
    claiming a clean local full suite. Keep synthetic rollback coverage intact.
-3. Proceed with Phase 2's lower-screen navigation, focus and stylus ownership audit.
-   The assignable Phase 1 shortcuts call existing screen behavior; they do not certify
-   the full lower-screen UX gate.
+3. Run the Phase 2 Thor acceptance checklist before calling the hardware gate passed.
+   Synthetic input and layout tests do not replace Android firmware/display validation.
 4. Exact ROM verification and safe reset/load behavior precede any new gameplay modifier.
 
 ## Open product decisions and safety gates

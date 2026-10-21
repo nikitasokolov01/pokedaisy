@@ -40,7 +40,8 @@ class Hotkeys private constructor(
         val badge: String? get() = when (this) {
             RESTART_GAME, CLOSE_APP -> NewFeatures.badge(NewFeatures.GAME_HOTKEYS)
             QUICK_MENU -> NewFeatures.badge(NewFeatures.QUICK_MENU)
-            SWAP_SCREENS, COMPANION, SCREENSHOT -> NewFeatures.badge(NewFeatures.DS_CONTROLS)
+            COMPANION -> NewFeatures.badge(NewFeatures.DS_NAVIGATION)
+            SWAP_SCREENS, SCREENSHOT -> NewFeatures.badge(NewFeatures.DS_CONTROLS)
             else -> null
         }
         val label get() = name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }

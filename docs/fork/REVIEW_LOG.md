@@ -87,3 +87,40 @@ Additional local review found reentrant UI changes during a multi-axis event and
 quick-menu releases being skipped. Routing now ends the game batch when UI takes input,
 and menus still receive shortcut releases for the next press. Regression tests cover both. No review here
 constitutes live Thor testing or native execution with a ROM.
+
+
+## Phase 2 lower-screen review (2026-10-21)
+
+An actual Claude review was received through the authorized, authenticated CLI in
+safe, tool-free print mode. Only the public routing/touch/navigation sources and
+integration diff were supplied. Request and response are retained locally as
+`build/fork-review/phase2-review*.txt`. This was static review, not hardware testing.
+
+- Accepted: an automatic return after a companion battle/field action must not
+  overwrite the user's remembered lower-screen choice. `NdsBottomHost.show` now
+  distinguishes a temporary transition from a remembered choice while notifying
+  ownership changes in both cases. The Android host test checks this distinction.
+- Accepted: unmapped controller repeats should be consumed just like initial presses
+  while the companion owns input. The activity now consumes gamepad/button/D-pad
+  repeats without allowing the main window's default dispatch to use them.
+- Camera reset report: not a regression. The full `releasePlayerInput` body already
+  zeros both right-stick camera components; that unchanged context was absent from
+  the supplied diff. Window changes call this helper.
+- Touch release report: the initial unconditional neutral requirement was corrected
+  during local review. It is armed only when touch input was held, and callbacks now
+  update the observed touch mask even when gameplay is blocked. Holding across a
+  boundary intentionally requires release; a fresh first tap with no prior hold is
+  not discarded.
+- Secondary-display focus remains a hardware gate. The layoutlib test exercises the
+  real Android ComposeView D-pad/activation adapter, and the desktop checks exercise
+  selection, tabs, overlays and explicit text entry. Neither emulates Thor firmware,
+  Android's multi-display focus service, lid sleep or its software keyboard.
+- Quick menu scope checked in the complete source: `quickMenuTakes` returns immediately
+  when closed. It runs before companion routing only while the quick menu is open.
+- B from explicit text editing was exercised: the editor becomes its ordinary focus
+  stop again and no keyboard is requested by simply traversing the field.
+- The reviewer found no multi-touch ownership defect. Multiple controllers can each
+  advance navigation independently; their releases and repeats remain device-local.
+
+No review author attribution is added to commits. No ROM assets or credentials were
+sent to the reviewer, and no gameplay hook or save format was changed.

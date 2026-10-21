@@ -98,4 +98,39 @@ shortcut releases so the next press works. Focus loss and rebind cancel player i
 New unbound actions invoke existing display-swap and companion switching, or queue a
 PNG capture after a completed emulation frame. DS capture includes both real screens.
 DS rewind remains unavailable. Touch fallback includes DS X/Y independently of physical
-profiles. Full lower-display focus/navigation and stylus ownership remain Phase 2.
+profiles. Phase 2 adds explicit lower-display focus/navigation and stylus ownership, described below.
+
+
+## Phase 2 implementation
+
+`NdsBottomHost` keeps the DS touch view and companion on the secondary display (or
+main display after a swap). Only the selected view is visible. A reserved switch bar
+sits outside both surfaces; its bounds are assigned during measurement, including
+wide displays without natural space below the DS image. `NdsTouchRect` supplies the
+same 4:3 geometry to rendering and hit testing. `NdsTouchInput` tracks one pointer,
+checks floating-point bounds before integer conversion, and releases on cancel,
+hide, resize, detach, focus loss and pause. The production sink remains `pkNdsTouch`.
+
+The activity routes the lower companion through its own `CompanionKeys` bus.
+`DsCompanionNavigation` reuses the existing overlay stack, focus starts, row cursor,
+and L/R tab hints. Android key focus stays with the activity; `companionFocus` sends
+D-pad/activation events directly to the visible Compose view. The Presentation also
+forwards joystick events. The existing one-screen window still works; DS two-display
+mode now uses the lower switch instead of leaving another companion over the game.
+B/device BACK unwind the active companion, then return to the touch image; START
+returns immediately. CLOSE COMPANION also returns to the DS touch image.
+
+`ControllerInputRouter` now emits ordinary menu edges after profile resolution,
+shortcut isolation and digital/analog merging. `CompanionNavigationInput` repeats
+only directions and owns holds by device and physical code. Switching surfaces clears
+game input and requires held keys/axes to release before reuse, even if a stick turns
+to another direction. Reentrant switches stop the rest of the current event batch.
+Default sticks retain the map's smooth cursor; custom stick bindings take the remapped
+edge path. Touch game controls are hidden while the companion owns input. Text fields
+require explicit activation rather than opening an editor when focus merely passes.
+
+Synthetic geometry/router tests and the desktop Compose checks use no ROM or save
+assets. The desktop harness substitutes Compose direction search for Android View
+focus search; it is not a test of Android display routing or the Thor's firmware.
+A separate Android layoutlib test exercises the real lower host and MotionEvent path
+with a recording JNI sink. Live Thor acceptance remains a separate hardware gate.

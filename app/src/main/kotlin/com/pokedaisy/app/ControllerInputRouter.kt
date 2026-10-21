@@ -77,11 +77,15 @@ class ControllerInputRouter(
     private val input: GbaInput,
     private val profile: (Int) -> InputProfile,
     private val action: (Hotkeys.Event) -> Unit,
+    /** Ordinary edges after profile/chord resolution, while the companion owns input. */
+    private val navigation: (device: Int, code: Int, down: Boolean) -> Unit = { _, _, _ -> },
 ) {
     private class Pad(val shortcuts: ShortcutRouter) {
         val keys = hashSetOf<Int>()
         var axes: Set<Int> = emptySet()
         var held: Set<Int> = emptySet()
+        val blocked = hashSetOf<Int>()
+        var axesBlocked = false
     }
     private val pads = hashMapOf<Int, Pad>()
     private val actionOwners = hashMapOf<Hotkeys.Action, MutableSet<Int>>()
@@ -103,22 +107,32 @@ class ControllerInputRouter(
 
     fun routeKey(device: Int, code: Int, down: Boolean, gameAllowed: Boolean = true): KeyResult {
         val p = pad(device)
+        if (down && p.axesBlocked && code in axisCodes) p.blocked += code
         if (down) p.keys += code else p.keys -= code
         val shortcut = update(device, p, gameAllowed)
         return KeyResult(shortcut || (hotkeysEnabled && p.shortcuts.isBound(code)) || input.buttonFor(code, device) != null, shortcut)
     }
 
     fun axes(device: Int, keys: Set<Int>, gameAllowed: Boolean = true): Boolean {
-        val p = pad(device); p.axes = keys; return update(device, p, gameAllowed)
+        val p = pad(device)
+        if (p.axesBlocked) {
+            p.blocked += keys
+            if (keys.isEmpty()) p.axesBlocked = false
+        }
+        p.axes = keys
+        return update(device, p, gameAllowed)
     }
 
     private fun update(device: Int, p: Pad, gameAllowed: Boolean): Boolean {
         val now = p.keys + p.axes
         val changes = (p.held - now).map { it to false } + (now - p.held).map { it to true }
         p.held = now
+        val blocked = p.blocked.toSet()
+        p.blocked.retainAll(now)
         val started = generation
         var consumed = false
         for ((key, down) in changes) {
+            if (key in blocked) continue
             val r = if (hotkeysEnabled) p.shortcuts.key(key, down)
                 else ShortcutRouter.Result(false, listOf(key to down))
             consumed = consumed || r.consumed
@@ -126,7 +140,19 @@ class ControllerInputRouter(
             if (gameAllowed) {
                 r.game.forEach { input.onKey(it.first, it.second, device) }
                 r.taps.forEach { input.tap(it, device) }
-            } else if (!down) input.onKey(key, false, device)
+            } else {
+                if (!down) input.onKey(key, false, device)
+                for ((code, pressed) in r.game) {
+                    navigation(device, code, pressed)
+                    if (generation != started) break
+                }
+                if (generation == started) for (code in r.taps) {
+                    navigation(device, code, true)
+                    if (generation != started) break
+                    navigation(device, code, false)
+                }
+            }
+            if (generation != started || pads[device] !== p) break
             r.actions.forEach { emit(device, it) }
             if (generation != started || pads[device] !== p) break
         }
@@ -149,4 +175,22 @@ class ControllerInputRouter(
 
     /** Opening a menu retains shortcut releases for the next press, but stops this batch's game input. */
     fun suspendGame() { generation++; input.releaseAll() }
+
+    /** An ownership/lifecycle boundary. Held buttons and axes must return to neutral before
+     * they can drive the new surface, including duplicate digital/analog reports. */
+    fun quarantineHeld() {
+        generation++
+        for ((device, p) in pads.toMap()) {
+            p.blocked += p.held
+            p.axesBlocked = p.axes.isNotEmpty()
+            p.shortcuts.cancel().forEach { emit(device, it) }
+        }
+        input.releaseAll()
+    }
+
+    fun axesQuarantined(device: Int): Boolean = pads[device]?.axesBlocked == true
+
+    private companion object {
+        val axisCodes = InputCodes.named.values.toSet() + setOf(19, 20, 21, 22, 104, 105)
+    }
 }

@@ -130,7 +130,7 @@ The quick menu puts the things you'd otherwise dig through menus for under one b
 | `WILD` | Turns `WILD ENCOUNTERS` off, and back on the next time. An `OFF` tag on its corner says they're off. It shows in games where `WILD ENCOUNTERS` works. |
 | `SAVE STATE`, `LOAD STATE` | Saves or loads the current state slot. |
 | `FF` | Turns fast-forward on or off. |
-| `COMPANION` | Opens the companion (on a device with one screen). |
+| `COMPANION` | Opens the lower companion for a DS game on two displays, or the companion panel on one screen. |
 
 Press L3 and the menu stays open: move with the D-pad or the left stick (on the ring, point the stick at an action), press `A` to use it, and `B` (or L3 again) closes it. You can also tap an action on the screen. While the menu is open your buttons work it, not the game, and the game keeps running underneath.
 
@@ -233,7 +233,7 @@ Some handhelds and controllers (Retroid's, for example) send their L2 and R2 tri
 
 `BACK` does two different things depending on how long you press it:
 
-- **A tap** is the companion's back. It closes whatever is open on the companion (a pick-list, a Pokémon's summary, a sub-page of `SETTINGS`) and steps back from there. With nothing left to close it does nothing, so you can't leave a game by accident. If you closed the companion with `CLOSE COMPANION`, a tap brings it back.
+- **A tap** is the companion's back. It closes whatever is open on the companion (a pick-list, a Pokémon's summary, a sub-page of `SETTINGS`) and steps back from there. At the root of the DS lower companion it returns to the touch screen; otherwise it does nothing, so you cannot leave a game by accident. If you closed the companion with `CLOSE COMPANION`, a tap brings it back.
 - **A hold** leaves the game and returns to the library (or to the frontend that launched it).
 
 This works from either screen. On a device with one screen, a tap also slides the companion panel in and out; see [Devices](devices.md).

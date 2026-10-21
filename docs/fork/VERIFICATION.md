@@ -145,3 +145,60 @@ game ROMs or borrow unrelated local saves to satisfy test prerequisites.
 
 No new feature writes ROMs, saves, party/PC data or challenge state. No HGSS modifier
 or Gen 5 capability is certified by this checklist.
+
+
+## Phase 2 lower-screen verification (2026-10-21)
+
+Implemented on `feature/ds-companion-navigation`, based on Phase 1 commit `8a9b563`.
+No ROM, BIOS or user-save assets were used. The ROM-revision/capability matrix is
+unchanged: this phase changes player input and companion presentation only.
+
+Evidence retained under the ignored `build/fork-review/` directory:
+
+| Check | Evidence / scope |
+| --- | --- |
+| Initial focused Android tests | 44 passed, zero failures/skips; `phase2-build-tests.log` and `phase2-focused-results/` |
+| Actual Android host/stylus | `NdsBottomHostTest`: real FrameLayout/MotionEvent routing with a recording JNI sink; switch cancels touch, hidden moves are rejected, geometry excludes the switch bar |
+| Actual Android focus adapter | `NdsBottomHostTest`: a D-pad event selects the second real Compose button and A activates it; hidden companion focus dispatch is rejected |
+| Desktop companion interactions | `phase2-navigation-ui.log`: four sizes (1240x1080 @ 2.625, 1280x960 @ 2, 1920x1080 @ 2, 720x640 @ 2), controller A, touch selector, B, L/R; explicit text-entry activation/back scenario also passed |
+| Rendered UI | Viewed the four final focus PNGs and text-entry PNG in `phase2-ui/`, Android host PNG, and `docs/manual/shots/ds-lower-companion.png` |
+| Manual / translations | Eight manual/search checks passed; 1,234 translation entries, 1,107 used keys, zero issues; 28-page website build passed |
+| Independent review | Actual tool-free Claude static review received; accepted fixes and rejected/qualified findings in REVIEW_LOG.md |
+| Hardware | Escalated `adb devices` returned no connected devices; Thor firmware, lid sleep, external display transitions, software keyboard and real-core stylus remain unverified |
+
+The desktop harness uses Compose directional focus search where Android uses View
+D-pad search. The Android test separately exercises that View adapter, but layoutlib
+cannot reproduce the Thor's second-display window manager. The real stylus sink in
+the APK remains JNI `pkNdsTouch`; the integration test records its calls rather than
+booting a copyrighted game. These are software checks, not a hardware acceptance pass.
+
+### Phase 2 Thor acceptance checklist (pending)
+
+1. Keep existing saves/settings when installing the debug APK. Launch a legal DS game
+   on two displays. Confirm the top screen keeps running while COMPANION/GAME SCREEN
+   alternates only the lower surface. Assign the COMPANION hotkey and test it too.
+2. In the companion, test mapped D-pad/stick directions, held repeat, A selection,
+   B through a popup/subpage and back to the game, START directly to the game, and
+   L/R tab cycling. Test DS X on the map where zoom is offered. Repeat after remapping.
+3. Hold a direction, trigger, shortcut modifier or touch game button while switching.
+   Confirm zero game presses while the companion is open and no resumed movement
+   until the old control is released. Turn a held stick to another direction before
+   centring it. Check unmapped-button repeats and two controllers independently.
+4. Touch every DS image corner and centre, then the letterbox and switch bar. Try a
+   drag outside and back, a second finger, lifting the first finger, hiding during a
+   drag and returning. Only the original finger controls the stylus until lifted;
+   hiding/resize/sleep releases it, and a fresh down starts the next touch.
+5. Swap screens both ways, open/close the lid, HOME and resume, rotate where supported,
+   disconnect/reconnect a controller and add/remove an external display. Confirm
+   usable controller focus, no hidden touches, no stuck map cursor, and correct sizing.
+6. Browse settings and HELP with the controller. Confirm the row highlight remains
+   visible and scrolling reaches the last row. Passing a search field must not open
+   a keyboard. Explicitly edit it by touch/A, type, use B and resume navigation;
+   actual Android keyboard/display behavior needs hardware confirmation.
+7. Confirm remembered lower mode after relaunch and sleep. A companion action that
+   temporarily returns to the game must preserve the preferred mode. CLOSE COMPANION
+   returns to the DS touch screen. Ordinary GB/GBC/GBA and one-screen window navigation
+   should retain their existing behavior.
+
+Single-screen DS playback still shows only the top image; switch mode here requires
+an actual second display. Split and floating companion modes are not implemented.
