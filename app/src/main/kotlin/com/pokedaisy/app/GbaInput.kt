@@ -29,10 +29,19 @@ class GbaInput {
     @Volatile
     private var controls: Map<Int, Int> = DEFAULT_CONTROLS
 
-    fun setControls(map: Map<Int, Int>) { controls = map }
+    fun setControls(map: Map<Int, Int>) {
+        controls = map.toMap()
+        // Releases may arrive after a rebind removed their old key, or be swallowed by capture.
+        releaseAll()
+    }
 
     /** A DS game runs: START 2 / SELECT 2 ([GbaControls.DS_X] / [GbaControls.DS_Y]) press its X / Y. */
     @Volatile var ds = false
+        set(value) {
+            if (field == value) return
+            field = value
+            releaseAll()
+        }
 
     /** @return true if the event was consumed. */
     fun onKey(keyCode: Int, down: Boolean): Boolean {

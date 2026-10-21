@@ -6,34 +6,34 @@ order: 2
 keywords: [remap, rebind, keybind, key bindings, buttons, mapping, controller, gamepad, joystick, bluetooth, 8bitdo, gamesir, xbox, keyboard, shortcut, chord, combo, turbo, autofire, rapid fire, triggers, l2, r2, on screen controls, virtual pad, touch pad, touch controls, layout editor, move buttons, resize buttons, opacity, haptics, vibration, wild encounters, encounter rate, random battles]
 ---
 
-PokeDaisy works out of the box on handhelds like the AYN Thor: the face buttons, shoulders, START and SELECT are the GBA's, and a few button combinations do emulator things like saving a state. Everything here is about changing that: which button presses what, which shortcuts exist, and what happens when you plug in a controller or play by touch.
+PokeDaisy works out of the box on handhelds like the AYN Thor: the face buttons, shoulders, START and SELECT control the game, and a few button combinations do emulator things like saving a state. DS games also have their own X and Y buttons. Everything here is about changing that: which button presses what, which shortcuts exist, and what happens when you plug in a controller or play by touch.
 
 The button settings live in the `CONTROLS` group, on both screens: the top screen's Settings (from the library) and the companion's `SETTINGS`. `AUTO-RUN`, `RUN INDOORS` and `WILD ENCOUNTERS` change the game itself, so they're in the companion's `GAMEPLAY` group, near the top.
 
 ## Game buttons
 
-`GAME BUTTONS` sets which physical button presses each GBA button. Open it and you'll see a row per GBA button with the keys it's on now.
+`GAME BUTTONS` sets which physical button presses each game button. In a DS game's companion, X and Y have their own rows named `DS X` and `DS Y`, separate from `DS START` and `DS SELECT`. In the library's Settings and first-time setup, the same bindings show both their DS and GBA names:
 
-| GBA button | Default |
+| Global settings row | Default |
 | --- | --- |
-| `GBA A` and `GBA B` | A and B |
-| `GBA L` and `GBA R` | L1 and R1 |
-| `GBA START` and `GBA SELECT` | START and SELECT |
-| `GBA START 2` and `GBA SELECT 2` | X and Y |
-| `GBA TURBO A` and `GBA TURBO B` | Nothing |
+| `A` and `B` | A and B |
+| `L` and `R` | L1 and R1 |
+| `START` and `SELECT` | START and SELECT |
+| `DS X / GBA START 2` and `DS Y / GBA SELECT 2` | X and Y |
+| `TURBO A` and `TURBO B` | Nothing |
 
-`START 2` and `SELECT 2` are a second START and SELECT, so X opens the menu and Y uses your registered item, like in the DS games. Each GBA button also has a keyboard key (Z, X, A, S, Enter and so on) for when you play with one.
+On DS, these bindings press the game's X and Y. On GB, GBC and GBA, they press a second START and SELECT instead. Settings are currently shared across games: changing DS X also changes the extra START binding for those systems. Your existing bindings carry over. The other game buttons also have keyboard keys (Z, X, A, S, Enter and so on).
 
 To change one, tap its row (it says `PRESS A BUTTON…`) and press the button you want on your device. That works the same on the top screen and on the companion: there, while a row waits, the game's screen shows a window asking for the button and the keys you hold. `CANCEL`, or `BACK`, leaves the button as it was. `TURBO A` and `TURBO B` also get `CLEAR`, which takes them off every button again.
 
-The new button replaces everything that GBA button had, keyboard key included. A button can only do one GBA button: put it on a new one and it leaves the old one.
+The new button replaces everything that game button had, keyboard key included. A button can only do one game button: put it on a new one and it leaves the old one. Rebinding releases any buttons you were holding, so an old binding cannot stay pressed.
 
 > [!NOTE]
 > Buttons go by Android's names, which follow an Xbox controller's layout. On AYN and Retroid devices, `A` is the bottom face button even where the printed label says something else. If A and B feel swapped, swap them here.
 
 The D-pad and the analog stick always move; they can't be remapped. First-time setup has a page listing these buttons too, and you change them right there the same way.
 
-![The top screen's GAME BUTTONS page, a row for each GBA button with the keys it's on](shots/settings-buttons.png "GAME BUTTONS on the top screen")
+![The top screen's GAME BUTTONS page, including DS X and DS Y alongside the shared bindings](shots/settings-buttons.png "GAME BUTTONS on the top screen")
 
 ## Turbo A and B
 
@@ -197,6 +197,8 @@ It works on the Game Boy Advance originals in every language and on almost every
 ## External controllers
 
 Bluetooth and USB controllers (8BitDo, GameSir, Xbox and so on) work, and you can connect one while a game is running without restarting it. A short message on the game screen says when a controller connects or goes away. Its buttons follow `GAME BUTTONS` and `HOTKEYS` like the built-in ones, and diagonals on its D-pad press both directions.
+
+When an input device disconnects, the app loses focus, or you suspend it, held game buttons and held shortcuts are released. Press again to continue. This currently releases all controllers together. A fast-forward setting you toggled on stays on; a held fast-forward shortcut stops. With touch controls set to `AUTO`, the existing touch buttons return when no controller remains.
 
 A controller's HOME or guide button, unless you've bound it to something, works like a tap of `BACK` (see below).
 

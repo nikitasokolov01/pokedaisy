@@ -58,6 +58,14 @@ class Hotkeys private constructor(
     private val held = HashSet<Int>()
     private val activeChords = HashSet<Pair<Action, Set<Int>>>()
 
+    /** Focus/disconnect cancellation: forget partial chords and release holds without firing actions. */
+    fun releaseAll(): List<Event> {
+        val releases = activeChords.map { it.first }.distinct().map { Event(it, false) }
+        activeChords.clear()
+        held.clear()
+        return releases
+    }
+
     /** @return press/release events triggered by this key change. */
     fun onKey(keyCode: Int, down: Boolean): List<Event> {
         if (down) held.add(keyCode) else held.remove(keyCode)

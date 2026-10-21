@@ -1,5 +1,7 @@
 package com.pokedaisy.app
 
+import com.pokedaisy.app.companion.NewFeatures
+
 import com.pokedaisy.app.companion.ui.theme.DarkMode
 import com.pokedaisy.app.companion.i18n.L10n
 import com.pokedaisy.app.companion.i18n.tk
@@ -684,7 +686,7 @@ class SettingsActivity : ComponentActivity() {
                 labelIcon = { GoldTrophy() }, opensPage = true,
             ) { screen = Screen.ACHIEVEMENTS },
             groupTitle(tk("CONTROLS")),
-            SettingRow(tk("GAME BUTTONS"), null, subtitle = "Key bindings: which button presses A, B, START...", opensPage = true) { screen = Screen.CONTROLS },
+            SettingRow(tk("GAME BUTTONS"), null, subtitle = "Key bindings: which button presses A, B, START...", labelBadge = NewFeatures.badge(NewFeatures.DS_CONTROLS), opensPage = true) { screen = Screen.CONTROLS },
             SettingRow(tk("HOTKEYS"), onOff(prefs.hotkeysEnabled), opensPage = true, subtitle = "Button combos for states, FF and more") { screen = Screen.HOTKEYS },
             SettingRow(tk("QUICK MENU"), null, subtitle = "Actions on a held button", labelBadge = com.pokedaisy.app.companion.ui.quickMenuBadge(), opensPage = true) { screen = Screen.QUICK_MENU },
             // The on-screen buttons: when they show, layouts, size, extras, EDIT LAYOUT; the game picks it up on resume.
@@ -1570,12 +1572,12 @@ class SettingsActivity : ComponentActivity() {
     private fun ControlsScreen(m: GbaTextMetrics, small: GbaTextMetrics) {
         val ctrls = remember(revision) { GbaControls.rawBindings(filesRoot) }
         Column(modifier = Modifier.fillMaxWidth()) {
-            Hint(tr("Which physical button is each GBA button. The D-pad and analog stick are fixed."), m, small)
+            Hint(tr("Shared game buttons. DS X and Y become START 2 and SELECT 2 on GB/GBC/GBA. The D-pad and analog stick are fixed."), m, small)
             OptionListWindow(m, Modifier.fillMaxWidth().weight(1f, fill = false)) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     GbaControls.Btn.entries.forEachIndexed { i, btn ->
                         KeyBindRow(
-                            "GBA ${btn.label}", ctrls[btn], capture, m, small,
+                            btn.title(), ctrls[btn], capture, m, small,
                             divider = i < GbaControls.Btn.entries.lastIndex,
                         ) { controlRequest(btn) }
                     }
@@ -1585,7 +1587,7 @@ class SettingsActivity : ComponentActivity() {
     }
 
     private fun controlRequest(btn: GbaControls.Btn) = com.pokedaisy.app.companion.KeyCapture.Request(
-        "GBA ${btn.label}", chord = false,
+        btn.title(), chord = false,
         onDone = { keys -> GbaControls.setBinding(filesRoot, btn, keys.first()); revision++ },
         onClear = if (btn.canClear) ({ GbaControls.clearBinding(filesRoot, btn); revision++ }) else null,
     )

@@ -25,6 +25,16 @@ object GbaControls {
         TURBO_A(MgbaCore.Key.A or TURBO, "TURBO A"), TURBO_B(MgbaCore.Key.B or TURBO, "TURBO B");
 
         val prop get() = name.lowercase()
+        /** null: global settings shared across systems; in-game labels name the active core's buttons. */
+        fun title(ds: Boolean? = null): String = when (ds) {
+            true -> "DS " + when (this) { START2 -> "X"; SELECT2 -> "Y"; else -> label }
+            false -> "GBA $label"
+            null -> when (this) {
+                START2 -> "DS X / GBA START 2"
+                SELECT2 -> "DS Y / GBA SELECT 2"
+                else -> label
+            }
+        }
         /** TURBO A / B start unbound and can go back to it; every other button always keeps a key. */
         val canClear get() = this == TURBO_A || this == TURBO_B
     }

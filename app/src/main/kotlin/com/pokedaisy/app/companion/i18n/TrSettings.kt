@@ -2,6 +2,7 @@ package com.pokedaisy.app.companion.i18n
 
 /** Both Settings screens: the top-screen SettingsActivity and the companion's SETTINGS tab. */
 internal val trSettings: Map<String, Tr> = mapOf(
+    "Shared game buttons. DS X and Y become START 2 and SELECT 2 on GB/GBC/GBA. The D-pad and analog stick are fixed." to Tr(ja = "ゲームの ボタンは きょうつうです。DSの Xと Yは GB/GBC/GBAで START 2と SELECT 2に なります。じゅうじキーと スティックは かえられません。", fr = "Boutons partagés. X et Y de la DS deviennent START 2 et SELECT 2 sur GB/GBC/GBA. La croix et le stick analogique sont fixes.", de = "Gemeinsame Spieltasten. DS X und Y werden auf GB/GBC/GBA zu START 2 und SELECT 2. Steuerkreuz und Analogstick sind fest.", it = "Tasti condivisi. X e Y del DS diventano START 2 e SELECT 2 su GB/GBC/GBA. Croce direzionale e levetta analogica sono fissi.", es = "Botones compartidos. X e Y de DS pasan a ser START 2 y SELECT 2 en GB/GBC/GBA. La cruceta y el stick analógico son fijos.", br = "Botões compartilhados. X e Y do DS viram START 2 e SELECT 2 no GB/GBC/GBA. O direcional e o analógico são fixos.", pt = "Botões partilhados. X e Y da DS passam a START 2 e SELECT 2 na GB/GBC/GBA. A cruz direcional e o analógico são fixos."),
     // HELP: the manual (DocsScreen.kt)
     "HELP" to Tr(ja = "ヘルプ", fr = "AIDE", de = "HILFE", it = "AIUTO", es = "AYUDA", br = "AJUDA", pt = "AJUDA"),
     "Help" to Tr(ja = "ヘルプ", fr = "Aide", de = "Hilfe", it = "Aiuto", es = "Ayuda", br = "Ajuda", pt = "Ajuda"),

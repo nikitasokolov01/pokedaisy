@@ -1900,18 +1900,18 @@ fun main(args: Array<String>) {
                 setup = SetupState().apply {
                     step = SetupState.Step.BUTTONS
                     buttons = PREVIEW_BUTTONS
-                    capture.start(com.pokedaisy.app.companion.KeyCapture.Request("GBA B", chord = false, onDone = {}))
+                    capture.start(com.pokedaisy.app.companion.KeyCapture.Request(GbaControls.Btn.B.title(), chord = false, onDone = {}))
                 }
             }
         }),
         // TURBO A can go back to unbound: CLEAR beside CANCEL.
         Shot("setup-buttons-capture-turbo", tw, th, td, activity {
             LibraryActivity().apply { setup = SetupState().apply { step = SetupState.Step.BUTTONS; buttons = PREVIEW_BUTTONS } }
-        }) { onNodeWithText("GBA TURBO A").performScrollTo().performSemanticsAction(SemanticsActions.OnClick) },
+        }) { onNodeWithText(GbaControls.Btn.TURBO_A.title()).performScrollTo().performSemanticsAction(SemanticsActions.OnClick) },
         // A row at the window's bottom edge, tapped: its CANCEL line scrolls up into view.
         Shot("setup-buttons-capture-low", tw, th, td, activity {
             LibraryActivity().apply { setup = SetupState().apply { step = SetupState.Step.BUTTONS; buttons = PREVIEW_BUTTONS } }
-        }) { onNodeWithText("GBA R").performSemanticsAction(SemanticsActions.OnClick) },
+        }) { onNodeWithText(GbaControls.Btn.R.title()).performSemanticsAction(SemanticsActions.OnClick) },
         // Over the game while the companion waits for keys: GBA A first, then a hotkey with SELECT held.
         Shot("game-capture-button", th * 3 / 2, th, td, {
             previewCapture = com.pokedaisy.app.companion.KeyCapture().apply {
@@ -2024,11 +2024,11 @@ fun main(args: Array<String>) {
         },
         // The list's end: LIBRARY / ONLINE (RetroAchievements' BETA tag) / APP.
         Shot("settings-home-bottom", tw, th, td, activity { SettingsActivity() }) { onNodeWithText("RUN SETUP").performScrollTo() },
-        Shot("settings-buttons", tw, th * 2, td, activity { SettingsActivity() }) { onNodeWithText("GAME BUTTONS").performScrollTo().performClick() },
+        Shot("settings-buttons", tw, th * 2, td, activity { SettingsActivity() }) { onNodeWithText("GAME BUTTONS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick) },
         // A GBA button waiting for its button, in place.
         Shot("settings-buttons-capture", tw, th * 2, td, activity { SettingsActivity() }) {
             onNodeWithText("GAME BUTTONS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)
-            onNodeWithText("GBA B").performSemanticsAction(SemanticsActions.OnClick)
+            onNodeWithText(GbaControls.Btn.B.title()).performSemanticsAction(SemanticsActions.OnClick)
         },
         Shot("settings-hotkeys-off", tw, th, td, activity { SettingsActivity() }) {
             onNodeWithText("HOTKEYS").performScrollTo().performSemanticsAction(SemanticsActions.OnClick)

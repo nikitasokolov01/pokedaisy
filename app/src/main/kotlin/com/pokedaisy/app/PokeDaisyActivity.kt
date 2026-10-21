@@ -111,6 +111,8 @@ class PokeDaisyActivity : Activity() {
             syncTouchControls()
         }
         override fun onInputDeviceRemoved(id: Int) {
+            // Ignore a peripheral that never supplied game input (for example a mouse).
+            if (playerInputDevices.remove(id)) releasePlayerInput()
             pads.remove(id)?.let { showHud(tr("Controller disconnected: {0}", it)) }
             // A keyboard-mode controller (see physicalPadUsed) may have been the one that went.
             physicalPadUsed = false
@@ -121,6 +123,8 @@ class PokeDaisyActivity : Activity() {
 
     /** Connected controllers by device id, with their names (for the disconnect notice). */
     private val pads = HashMap<Int, String>()
+    /** Input sources seen since the last reset; full per-device button ownership is a later phase. */
+    private val playerInputDevices = HashSet<Int>()
 
     /**
      * A real button played the game: AUTO hides the touch controls from then on, even for a
@@ -1027,6 +1031,7 @@ class PokeDaisyActivity : Activity() {
         override fun editTouchLayout() = runOnUiThread { openTouchEditor() }
         override val touchRevision get() = touchRev.intValue
         override val touchControlsShown get() = ::touchControls.isInitialized && touchControls.visibility == View.VISIBLE
+        override val dsControls get() = romIsNds
         override fun gbaControlBindings() = GbaControls.rawBindings(getExternalFilesDir(null) ?: filesDir)
         override val keyCapture get() = this@PokeDaisyActivity.keyCapture
         override fun setGbaControlBinding(btn: GbaControls.Btn, keyName: String) {
@@ -1863,6 +1868,7 @@ class PokeDaisyActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
+        releasePlayerInput()
         // Android's pause around moving this activity to the other screen (moveToDisplay): the game runs on.
         val moving = movingSince != 0L && android.os.SystemClock.uptimeMillis() - movingSince < MOVE_PAUSE_MS
         movingSince = 0L
@@ -2089,7 +2095,7 @@ class PokeDaisyActivity : Activity() {
     // A move between two screens of one size changes no configuration; the moved activity gets the focus.
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) followDisplay()
+        if (hasFocus) followDisplay() else releasePlayerInput()
     }
 
     /** The game's stage as this activity's content (dropping the swapped companion). */
@@ -2487,6 +2493,27 @@ class PokeDaisyActivity : Activity() {
 
     // --- input ---------------------------------------------------------------
 
+    /** Android may never deliver key-up after focus loss, suspend or unplugging a pad. */
+    private fun releasePlayerInput() {
+        input.releaseAll()
+        playerInputDevices.clear()
+        if (::hotkeys.isInitialized) hotkeys.releaseAll().forEach(::handleHotkey)
+        rtDown = false; ltDown = false
+        menuHeld.clear(); menuHat = 0
+        quickHat = 0
+        quickStickOff = false
+        quickStickHold = false
+        touchHeld = 0
+        touchFfDownAt = 0L
+        if (::view.isInitialized) { view.camera.stickX = 0f; view.camera.stickY = 0f }
+        // Touch FF holds do not go through Hotkeys. Preserve the player's toggled FF setting.
+        if (::engine.isInitialized) {
+            engine.setFastForwardHeld(false)
+            engine.setSlowmoHeld(false)
+            engine.setRewindHeld(false)
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         noteKeyDelay(event)
         // The companion's rebind waiting for keys: they're its alone - not the game's, the hotkeys' or BACK's.
@@ -2497,8 +2524,12 @@ class PokeDaisyActivity : Activity() {
         val down = event.action == KeyEvent.ACTION_DOWN
         menuKeyTakes(event)?.let { return it }
         quickMenuTakes(event)?.let { return it }
-        if (hotkeyTakes(event.keyCode, down)) return true
+        if (hotkeyTakes(event.keyCode, down)) {
+            if (down) playerInputDevices.add(event.deviceId)
+            return true
+        }
         if (input.onKey(event.keyCode, down)) {
+            if (down) playerInputDevices.add(event.deviceId)
             if (down && !physicalPadUsed && event.device?.isVirtual == false) {
                 physicalPadUsed = true
                 syncTouchControls()
@@ -2719,6 +2750,7 @@ class PokeDaisyActivity : Activity() {
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) playerInputDevices.add(event.deviceId)
         if (::engine.isInitialized) {
             val rt = maxOf(
                 event.getAxisValue(MotionEvent.AXIS_RTRIGGER),

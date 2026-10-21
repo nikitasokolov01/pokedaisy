@@ -108,7 +108,10 @@ interface CompanionSettings {
     /** Waits for the keys to bind (the game's activity gets every key); null where nothing can be pressed (previews). */
     val keyCapture: KeyCapture? get() = null
 
-    /** Current GBA-button bindings, by display name (e.g. "BUTTON_A", "Z"). */
+    /** Whether GAME BUTTONS should name the DS's X/Y instead of the GBA's extra START/SELECT. */
+    val dsControls: Boolean get() = false
+
+    /** Current shared game-button bindings, by display name (e.g. "BUTTON_A", "Z"). */
     fun gbaControlBindings(): Map<GbaControls.Btn, List<String>>
 
     /** Rebinds a GBA button to a single key, by display name (no "KEYCODE_" prefix). */
