@@ -54,12 +54,27 @@ Flipped from the companion, it switches right away and the window opens so you c
 
 A DS has two screens, and so does a dual-screen handheld, so a DS game uses both the way the DS does: its top screen on your top screen, its touch screen on the bottom one. Tap the bottom screen with your finger wherever the game wants the stylus.
 
-The companion is still there:
+Tap `COMPANION` in the bar below the touch image to switch the lower screen to the companion. Tap `GAME SCREEN` in the same place to return. The switch bar has its own space, so it never covers the game's touch image. The top screen keeps showing the game.
 
-- **On the bottom screen:** tap `COMPANION` in the bar under the touch screen and the companion takes the touch screen's place. Tap `GAME SCREEN` in the same spot to bring the touch screen back. `BACK` with nothing left to go back from also returns to the touch screen. PokeDaisy remembers which of the two you had.
-- **Over the game:** tap `BACK` and the companion opens over the top screen, as on a one-screen handheld (see [The window](#the-window)).
+You can also assign `COMPANION` in `HOTKEYS`, using the Thor's controller profile. It starts unbound. A device `BACK` tap opens the lower companion from the game screen. PokeDaisy remembers which lower screen you chose across relaunch and sleep. A companion action that briefly returns you to the game keeps that preference.
 
-`SWAP SCREENS` trades a DS game's two screens too: the top screen goes on your bottom screen, and the touch screen, with its `COMPANION` button, on the top one. The touch screen stays up whatever `CLOSE COMPANION` says. `REWIND` isn't available in DS games.
+While the lower companion is open, your mapped game buttons control it:
+
+| Button | Companion action |
+| --- | --- |
+| D-pad or left stick | Move the highlighted selection; hold a direction to repeat. |
+| A | Select the highlighted row or button. |
+| B or device `BACK` | Go back one page or close a popup; at the root, return to the DS touch screen. |
+| L / R | Step through the tabs. A page with its own shoulder controls takes them first. |
+| START | Return directly to the DS touch screen. |
+
+These are the actions assigned in `GAME BUTTONS`, so your remapping still applies. The tab bar shows shoulder hints, and the switch bar reminds you of A, B and START. Touch works on the same rows and buttons. Search fields open for editing only after a tap or A press, so browsing does not bring up a keyboard.
+
+![The lower companion with controller tab hints and a separate GAME SCREEN switch bar](shots/ds-lower-companion.png "DS lower companion")
+
+The game keeps running while you browse, but controller presses belong to the companion. Held buttons and sticks must be released before they can control the game again. Switching, resizing or sleeping lifts the stylus. One finger owns a touch until you lift it; another finger cannot take over. Taps outside the image do nothing.
+
+`SWAP SCREENS` trades a DS game's two screens too: the top screen moves to the other display, and the touch screen with its switch bar takes the main display. `CLOSE COMPANION` returns to the DS touch screen. `REWIND` is unavailable for DS games.
 
 On a handheld or phone with one screen, a DS game shows its top screen only, for now: the touch screen needs a second screen. The game plays with your buttons, but anything that has to be tapped on the touch screen can't be done there yet.
 

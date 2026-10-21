@@ -8,8 +8,7 @@ import java.util.Properties
 /**
  * Remappable mapping of physical keys/buttons to GBA buttons, from
  * `files/controls.properties`. One or more key names per GBA button
- * (comma-separated; any of them triggers it). The D-pad and analog stick stay
- * fixed — only the face/shoulder/menu buttons are here.
+ * (comma-separated; any of them triggers it), including directions and stick axes.
  */
 object GbaControls {
 
@@ -22,11 +21,23 @@ object GbaControls {
         START(MgbaCore.Key.START, "START"), SELECT(MgbaCore.Key.SELECT, "SELECT"),
         // On a DS game they're its own X / Y ([DS_X] / [DS_Y]: GbaInput swaps them in).
         START2(MgbaCore.Key.START or DS_X, "START 2"), SELECT2(MgbaCore.Key.SELECT or DS_Y, "SELECT 2"),
-        TURBO_A(MgbaCore.Key.A or TURBO, "TURBO A"), TURBO_B(MgbaCore.Key.B or TURBO, "TURBO B");
+        TURBO_A(MgbaCore.Key.A or TURBO, "TURBO A"), TURBO_B(MgbaCore.Key.B or TURBO, "TURBO B"),
+        UP(MgbaCore.Key.UP, "UP"), DOWN(MgbaCore.Key.DOWN, "DOWN"),
+        LEFT(MgbaCore.Key.LEFT, "LEFT"), RIGHT(MgbaCore.Key.RIGHT, "RIGHT");
 
         val prop get() = name.lowercase()
-        /** TURBO A / B start unbound and can go back to it; every other button always keeps a key. */
-        val canClear get() = this == TURBO_A || this == TURBO_B
+        /** null: global settings shared across systems; in-game labels name the active core's buttons. */
+        fun title(ds: Boolean? = null): String = when (ds) {
+            true -> "DS " + when (this) { START2 -> "X"; SELECT2 -> "Y"; else -> label }
+            false -> "GBA $label"
+            null -> when (this) {
+                START2 -> "DS X / GBA START 2"
+                SELECT2 -> "DS Y / GBA SELECT 2"
+                else -> label
+            }
+        }
+        /** Touch controls and RESET remain available even if every physical input is cleared. */
+        val canClear get() = true
     }
 
     private val DEFAULTS = linkedMapOf(
@@ -42,6 +53,10 @@ object GbaControls {
         "select2" to "BUTTON_Y",
         "turbo_a" to "",
         "turbo_b" to "",
+        "up" to "DPAD_UP, STICK_UP",
+        "down" to "DPAD_DOWN, STICK_DOWN",
+        "left" to "DPAD_LEFT, STICK_LEFT",
+        "right" to "DPAD_RIGHT, STICK_RIGHT",
     )
 
     /** Above every GBA key bit: a [load] value with it is a turbo button for the bits below. */
@@ -53,32 +68,48 @@ object GbaControls {
 
     private fun file(dir: File) = File(dir, "controls.properties")
 
-    private fun readProps(dir: File): Properties {
+    private fun readProps(dir: File, persistDefaults: Boolean = true): Properties {
         val p = Properties()
         val f = file(dir)
         if (f.isFile) runCatching { f.inputStream().use(p::load) }
         var changed = false
         for ((k, v) in DEFAULTS) if (!p.containsKey(k)) { p.setProperty(k, v); changed = true }
-        if (changed) runCatching {
+        if (changed && persistDefaults) runCatching {
             f.outputStream().use { p.store(it, "PokeDaisy GBA button map — Android key names, comma-separated") }
         }
         return p
     }
 
-    /** keycode -> GBA key bit ([TURBO] set for TURBO A / B). A key bound twice takes the later button. */
+    /** keycode -> core bit. Ambiguous imported bindings stay unbound until the player fixes them. */
     fun load(dir: File): Map<Int, Int> {
-        val props = readProps(dir)
-        val out = HashMap<Int, Int>()
-        for (btn in Btn.entries) {
-            props.getProperty(btn.prop).orEmpty().split(',').forEach { n ->
-                resolveKey(n.trim())?.let { out[it] = btn.bit }
-            }
-        }
-        return out
+        return mapping(rawBindings(dir))
     }
 
-    fun rawBindings(dir: File): Map<Btn, List<String>> {
-        val props = readProps(dir)
+    fun defaults(): Map<Btn, List<String>> = Btn.entries.associateWith { btn ->
+        DEFAULTS[btn.prop].orEmpty().split(',').map(String::trim).filter(String::isNotEmpty)
+    }
+
+    fun mapping(raw: Map<Btn, List<String>>): Map<Int, Int> {
+        val out = HashMap<Int, Int>()
+        val conflicts = hashSetOf<Int>()
+        for (btn in Btn.entries) {
+            raw[btn].orEmpty().forEach { n ->
+                resolveKey(n.trim())?.let {
+                    if (out[it] != null && out[it] != btn.bit) conflicts += it
+                    out[it] = btn.bit
+                }
+            }
+        }
+        return out - conflicts
+    }
+
+    fun conflicted(raw: Map<Btn, List<String>>, btn: Btn): Boolean = raw[btn].orEmpty().any { name ->
+        val key = resolveKey(name)
+        key != null && raw.any { (other, names) -> other != btn && names.any { resolveKey(it) == key } }
+    }
+
+    fun rawBindings(dir: File, persistDefaults: Boolean = true): Map<Btn, List<String>> {
+        val props = readProps(dir, persistDefaults)
         return Btn.entries.associateWith {
             props.getProperty(it.prop).orEmpty().split(',').map { s -> s.trim() }.filter { s -> s.isNotEmpty() }
         }
@@ -96,7 +127,7 @@ object GbaControls {
         runCatching { file(dir).outputStream().use { props.store(it, "PokeDaisy GBA button map") } }
     }
 
-    /** Leaves [btn] unbound - TURBO A / B only ([Btn.canClear]). */
+    /** Leaves [btn] unbound; touchscreen controls remain available. */
     fun clearBinding(dir: File, btn: Btn) {
         if (!btn.canClear) return
         val props = readProps(dir)
@@ -104,9 +135,10 @@ object GbaControls {
         runCatching { file(dir).outputStream().use { props.store(it, "PokeDaisy GBA button map") } }
     }
 
-    private fun resolveKey(name: String): Int? {
+    fun resolveKey(name: String): Int? {
         if (name.isEmpty()) return null
-        return runCatching { KeyEvent::class.java.getField("KEYCODE_$name").getInt(null) }
+        InputCodes.named[name.uppercase()]?.let { return it }
+        return runCatching { KeyEvent::class.java.getField("KEYCODE_${name.uppercase()}").getInt(null) }
             .onFailure { Log.w("pokedaisy", "unknown control key: $name") }.getOrNull()
     }
 }

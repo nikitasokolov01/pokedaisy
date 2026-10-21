@@ -29,8 +29,8 @@ class HotkeyBindingTest {
         )
         assertEquals(listOf(Action.SAVE_STATE), Hotkeys.clashes(raw, Action.EXIT_GAME, listOf("BUTTON_R1", "BUTTON_SELECT")))
         assertEquals(listOf(Action.SAVE_STATE), Hotkeys.clashes(raw, Action.EXIT_GAME, listOf("f1")))
-        // Sharing only some keys is how chords work, and rebinding an action to its own chord is no clash.
-        assertTrue(Hotkeys.clashes(raw, Action.EXIT_GAME, listOf("BUTTON_SELECT")).isEmpty())
+        // A subset would make both actions ambiguous; sharing only a modifier is fine.
+        assertEquals(listOf(Action.SAVE_STATE, Action.LOAD_STATE), Hotkeys.clashes(raw, Action.EXIT_GAME, listOf("BUTTON_SELECT")))
         assertTrue(Hotkeys.clashes(raw, Action.SAVE_STATE, listOf("F1")).isEmpty())
     }
 

@@ -894,6 +894,7 @@ fun AppBackdrop(
  * it, with an eye at the end to show / hide it; [code] asks for capitals with no suggestions
  * (cheat codes); [number] for digits. */
 @Composable
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 fun OptionTextField(
     value: String,
     onValueChange: (String) -> Unit,
@@ -907,6 +908,24 @@ fun OptionTextField(
     /** A [PixelIcons] bitmap before the text, in the placeholder's grey (a search box's magnifier). */
     leadingIcon: List<String>? = null,
 ) {
+    // Browsing the lower companion must not summon a keyboard merely by moving focus.
+    // A deliberate tap / A opens the editor; B returns to its ordinary focus stop.
+    var editing by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val explicit = LocalExplicitTextEntry.current
+    val editFocus = remember { FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    CompanionBackHandler(enabled = explicit && editing) {
+        keyboard?.hide()
+        editing = false
+    }
+    if (explicit && !editing) {
+        OptionButton(if (password && value.isNotEmpty()) "••••" else value.ifEmpty { placeholder ?: tr("EDIT") }, m,
+            onClick = { editing = true }, modifier = modifier.fillMaxWidth())
+        return
+    }
+    androidx.compose.runtime.LaunchedEffect(editing) {
+        if (explicit && editing) { editFocus.requestFocus(); keyboard?.show() }
+    }
     val u = m.u
     var shown by remember { androidx.compose.runtime.mutableStateOf(false) }
     // D-pad focus (the library's and Settings' search box) shows like every other control's: the focus ring.
@@ -926,7 +945,7 @@ fun OptionTextField(
         },
         textStyle = gbaTextStyle(pixelFontFamily(), m).copy(color = OptionColors.label),
         cursorBrush = SolidColor(OptionColors.value),
-        modifier = modifier
+        modifier = modifier.then(if (explicit) Modifier.focusRequester(editFocus) else Modifier)
             .fillMaxWidth()
             .onFocusChanged { focused = it.isFocused }
             .gbaFocusRing(focused, PixelRoundedShape(u * 2))

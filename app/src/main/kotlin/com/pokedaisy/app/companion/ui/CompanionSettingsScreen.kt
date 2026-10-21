@@ -50,7 +50,7 @@ internal val STATUS_BAR_PLACES = listOf(tk("OFF"), tk("GAME"), tk("COMPANION"))
 
 internal fun statusBarLabel(on: Boolean, onCompanion: Boolean) = STATUS_BAR_PLACES[if (!on) 0 else if (onCompanion) 2 else 1]
 
-internal enum class Page(val title: String) { HOME(tk("SETTINGS")), TABS(tk("TAB BAR")), BUTTONS(tk("GAME BUTTONS")), HOTKEYS(tk("HOTKEYS")), SHADERS(tk("SHADERS")), FIELD_HUD(tk("HUD")), QUICK_MENU(tk("QUICK MENU")), TOUCH(tk("TOUCH CONTROLS")), SPEED(tk("SPEED OPTIONS")), DISPLAY(tk("DISPLAY OPTIONS")), CHEATS(tk("CHEATS")), TWEAKS(tk("TWEAKS")), HELP(tk("HELP")) }
+internal enum class Page(val title: String) { HOME(tk("SETTINGS")), ENHANCEMENTS(tk("ENHANCEMENTS")), TABS(tk("TAB BAR")), BUTTONS(tk("GAME BUTTONS")), HOTKEYS(tk("HOTKEYS")), SHADERS(tk("SHADERS")), FIELD_HUD(tk("HUD")), QUICK_MENU(tk("QUICK MENU")), TOUCH(tk("TOUCH CONTROLS")), SPEED(tk("SPEED OPTIONS")), DISPLAY(tk("DISPLAY OPTIONS")), CHEATS(tk("CHEATS")), TWEAKS(tk("TWEAKS")), HELP(tk("HELP")) }
 
 /** Where BACK from a page goes: SHADERS opens from DISPLAY OPTIONS, the rest from HOME. */
 internal val Page.parent: Page get() = if (this == Page.SHADERS) Page.DISPLAY else Page.HOME
@@ -159,26 +159,40 @@ fun CompanionSettingsScreen(
                             tick++
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
-                    Page.BUTTONS -> GbaControls.Btn.entries.map { btn ->
-                        val title = "GBA ${btn.label}"
-                        SettingRow(title, bindingValue(capture, title, settings.gbaControlBindings()[btn])) {
+                    Page.BUTTONS -> inputProfileRows(settings, {
+                        confirm = Confirm(tk("RESET PROFILE"), tr("Reset this profile? Global resets to factory settings; other profiles inherit their defaults."), tk("RESET")) { settings.resetInputProfile(); tick++ }
+                    }) { capture?.cancel(); tick++ } + GbaControls.Btn.entries.map { btn ->
+                        val title = btn.title(settings.dsControls)
+                        SettingRow(title, if (GbaControls.conflicted(settings.gbaControlBindings(), btn)) tk("KEY IN USE") else bindingValue(capture, title, settings.gbaControlBindings()[btn])) {
                             capture?.toggle(title) {
                                 KeyCapture.Request(
                                     title, chord = false,
-                                    onDone = { keys -> settings.setGbaControlBinding(btn, KeyCapture.keyName(keys.first())); tick++ },
+                                    onDone = { keys ->
+                                        val name = KeyCapture.keyName(keys.first())
+                                        val taken = settings.gbaControlBindings().filter { (other, names) -> other != btn && name in names }.keys
+                                        if (taken.isEmpty()) { settings.setGbaControlBinding(btn, name); tick++ }
+                                        else confirm = Confirm(tk("KEY IN USE"), tr("{0} is already {1}. Move it to {2}?", name,
+                                            taken.joinToString { it.title(settings.dsControls) }, title), tk("MOVE")) {
+                                            settings.setGbaControlBinding(btn, name); tick++
+                                        }
+                                    },
                                     onClear = if (btn.canClear) ({ settings.clearGbaControlBinding(btn); tick++ }) else null,
+                                    acceptsDevice = settings::acceptsInputDevice,
                                 )
                             }
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
                     // Off, the binds stay as they are, greyed out, and every key goes to the game.
-                    Page.HOTKEYS -> listOf(
+                    Page.HOTKEYS -> inputProfileRows(settings, {
+                        confirm = Confirm(tk("RESET PROFILE"), tr("Reset this profile? Global resets to factory settings; other profiles inherit their defaults."), tk("RESET")) { settings.resetInputProfile(); tick++ }
+                    }) { capture?.cancel(); tick++ } + listOf(
                         SettingRow(tk("HOTKEYS"), if (settings.hotkeysEnabled) tk("ON") else tk("OFF")) {
                             settings.setHotkeysEnabled(!settings.hotkeysEnabled); tick++
                         },
                     ) + Hotkeys.Action.entries.map { action ->
                         val title = action.title
-                        SettingRow(title, bindingValue(capture, title, settings.hotkeyBindings()[action]), enabled = settings.hotkeysEnabled, labelBadge = action.badge) {
+                        val supported = !(settings.dsControls && action == Hotkeys.Action.REWIND_HOLD)
+                        SettingRow(title, if (!supported) tk("N/A") else if (Hotkeys.conflicted(settings.hotkeyBindings(), action)) tk("KEY IN USE") else bindingValue(capture, title, settings.hotkeyBindings()[action]), enabled = settings.hotkeysEnabled && supported, labelBadge = action.badge) {
                             capture?.toggle(title) {
                                 KeyCapture.Request(
                                     title, chord = true,
@@ -195,6 +209,7 @@ fun CompanionSettingsScreen(
                                     },
                                     // CLEAR leaves it unbound.
                                     onClear = { settings.setHotkeyBinding(action, null); tick++ },
+                                    acceptsDevice = settings::acceptsInputDevice,
                                 )
                             }
                         }
@@ -233,7 +248,7 @@ fun CompanionSettingsScreen(
                             tick++
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
-                    Page.HELP -> emptyList()
+                    Page.HELP, Page.ENHANCEMENTS -> emptyList()
                 }
             }
             // A page of its own each time: the rows sit in slots by position, so the row the D-pad had focused on HOME
@@ -245,6 +260,10 @@ fun CompanionSettingsScreen(
                     val context = androidx.compose.ui.platform.LocalContext.current
                     val source = remember { DocsSources.of(context) }
                     DocsReader(ui.docs, m, source, Modifier.fillMaxWidth().weight(1f), searchable = false)
+                } else if (page == Page.ENHANCEMENTS) {
+                    OptionListWindow(m, Modifier.fillMaxWidth().weight(1f)) {
+                        EnhancementPage(settings?.enhancements, Modifier.fillMaxWidth())
+                    }
                 } else if (page == Page.TOUCH && settings != null) {
                     // The preview beside / above the rows; it follows each change (tick).
                     @Suppress("UNUSED_EXPRESSION") tick
@@ -387,6 +406,20 @@ private class Selector(
 
 private class Confirm(val title: String, val message: String, val confirmLabel: String, val action: () -> Unit)
 
+private fun inputProfileRows(s: CompanionSettings, reset: () -> Unit, changed: () -> Unit): List<SettingRow> {
+    val choices = s.inputControllers
+    return listOf(
+        SettingRow(tk("CONTROLLER PROFILE"), choices.firstOrNull { it.id == s.inputController }?.label ?: "${tk("OFFLINE")} ${s.inputController?.take(6).orEmpty()}") {
+            changed()
+            s.setInputController(choices[(choices.indexOfFirst { it.id == s.inputController } + 1).mod(choices.size)].id)
+        },
+        SettingRow(tk("APPLIES TO"), if (s.inputForGame) tk("THIS GAME") else tk("ALL GAMES")) {
+            changed(); s.setInputForGame(!s.inputForGame)
+        },
+        SettingRow(tk("RESET PROFILE"), null, onClick = reset),
+    ) + s.inputProfileError?.let { listOf(SettingRow(tr(it), null, enabled = false) {}) }.orEmpty()
+}
+
 private fun homeRows(
     s: CompanionSettings,
     barTabs: Int,
@@ -416,6 +449,7 @@ private fun homeRows(
         // SCENE SPEEDS, FF MODE and FF MUSIC: set once and rarely touched, on their own page.
         SettingRow(tk("SPEED OPTIONS"), null, subtitle = "Scene speeds, FF mode and FF music", opensPage = true) { navigate(Page.SPEED) },
         groupTitle(tk("GAMEPLAY")),
+        SettingRow(tk("ENHANCEMENTS"), null, labelBadge = NewFeatures.badge(NewFeatures.ENHANCEMENTS), opensPage = true) { navigate(Page.ENHANCEMENTS) },
         // The game's own switch for random encounters (WildEncounters.kt): ON (the game's rate) or OFF.
         SettingRow(tk("WILD ENCOUNTERS"), if (s.wildEncountersSupported) wildEncountersLabel(s.wildEncounters) else tk("N/A"),
             enabled = s.wildEncountersSupported, subtitle = "In grass, caves and water") {
@@ -507,7 +541,7 @@ private fun homeRows(
         // Small on / off preferences: the icons' bounce, the map cursor's blink, tab slides, the battle jump.
         SettingRow(tk("TWEAKS"), null, opensPage = true, subtitle = "Small animations and the battle jump") { navigate(Page.TWEAKS) },
         groupTitle(tk("CONTROLS")),
-        SettingRow(tk("GAME BUTTONS"), null, subtitle = "Key bindings: which button presses A, B, START...", opensPage = true) { navigate(Page.BUTTONS) },
+        SettingRow(tk("GAME BUTTONS"), null, subtitle = "Key bindings: which button presses A, B, START...", labelBadge = NewFeatures.badge(NewFeatures.DS_CONTROLS), opensPage = true) { navigate(Page.BUTTONS) },
         SettingRow(tk("HOTKEYS"), onOff(s.hotkeysEnabled), opensPage = true, subtitle = "Button combos for states, FF and more") { navigate(Page.HOTKEYS) },
         // PC, FLY, a Repel, the bike, a rod, states, FF... on a held button (L3 by default): its own page.
         SettingRow(tk("QUICK MENU"), null, subtitle = "Actions on a held button", labelBadge = quickMenuBadge(), opensPage = true) { navigate(Page.QUICK_MENU) },

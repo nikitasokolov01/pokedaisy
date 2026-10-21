@@ -36,13 +36,15 @@ class KeyCaptureTest {
     }
 
     @Test
-    fun aButtonTakesOneKeyAndNeverTheDpad() {
+    fun aButtonTakesOneKeyIncludingTheDpad() {
         val done = mutableListOf<List<Int>>()
         val c = capture(chord = false, done)
-        // The D-pad is the GBA's own: taken (it doesn't reach the game or the focus) but not bound.
         assertTrue(c.onKey(KEYCODE_DPAD_UP, true))
         assertTrue(c.onKey(KEYCODE_DPAD_UP, false))
-        assertTrue(c.active)
+        assertFalse(c.active)
+        assertEquals(listOf(listOf(KEYCODE_DPAD_UP)), done)
+        done.clear()
+        c.start(KeyCapture.Request("A", false, { done += it }))
         c.onKey(KEYCODE_BUTTON_X, true)
         c.onKey(KEYCODE_BUTTON_A, true)
         c.onKey(KEYCODE_BUTTON_X, false)

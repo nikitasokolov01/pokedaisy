@@ -160,6 +160,8 @@ function image(n, ctx) {
 }
 
 function frontMatter(src, file) {
+  // Git's Windows checkout may use CRLF; both readers should receive the same document.
+  src = src.replace(/\r\n/g, '\n');
   const m = /^---\n([\s\S]*?)\n---\n/.exec(src);
   if (!m) throw new Error(`${file}: starts without front matter (--- title: ... ---)`);
   const meta = YAML.parse(m[1]);

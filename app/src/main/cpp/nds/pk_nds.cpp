@@ -9,6 +9,7 @@
 // older save back: melonDS states carry the cart's save memory, and a load writes it to the file here as mGBA does.
 
 #include "pk_nds.h"
+#include "input_mask.h"
 #include "pk_nds_platform.h"
 #include "pk_nds_field.h"
 #include "pk_nds_call.h"
@@ -247,7 +248,7 @@ bool pk_nds_active(void) { return ds != nullptr; }
 
 void pk_nds_set_keys(uint32_t keys)
 {
-    if (ds) ds->keys = keys & 0xFFF;
+    if (ds) ds->keys = pk_nds_pressed_keys(keys);
 }
 
 void pk_nds_touch(bool down, int x, int y)
@@ -261,7 +262,7 @@ void pk_nds_run_frame(void)
 {
     if (!ds) return;
     NDS* nds = ds->nds;
-    nds->SetKeyMask(~ds->keys & 0xFFF);
+    nds->SetKeyMask(pk_nds_active_low_keys(ds->keys));
     u32 t = touch.load();
     if (t & 0x80000000u) nds->TouchScreen((u16) ((t >> 8) & 0xFF), (u16) (t & 0xFF));
     else nds->ReleaseScreen();

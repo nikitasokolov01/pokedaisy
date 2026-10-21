@@ -308,7 +308,7 @@ object TouchGeometry {
         b.at(TouchButton.B, rx - b.sc(FACE_DX), cy + b.sc(FACE_DY))
         // Extras between the shoulder and the pad above it: the right hand's (FF, turbo) on the right.
         val extras = buttons.filter { it.extra }
-        val right = extras.filter { it == TouchButton.FF || it == TouchButton.TURBO_A || it == TouchButton.TURBO_B }
+        val right = extras.filter { it == TouchButton.FF || it == TouchButton.TURBO_A || it == TouchButton.TURBO_B || it == TouchButton.DS_X }
         val left = extras - right.toSet()
         val gap = b.px(GAP)
         flow(b, left, gap, top, margin - gap, cy - dpadR - gap)
