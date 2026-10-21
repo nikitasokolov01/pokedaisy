@@ -24,3 +24,8 @@ rollback, test reset/resume/load and interactions with existing options, then re
 legal-asset and hardware evidence. Missing progression metadata must disable only
 the dependent feature, never fabricate badge/story state. Do not fill the registry
 with placeholder addresses or approve a patch from header identity alone.
+
+Phase 4 update (2026-10-21): the [mechanics matrix](HGSS_MECHANICS.md#compatibility-and-admission-matrix)
+records independent EXP/cap/text/HM rule logic and synthetic coverage. No production
+capability has been approved for either listed ROM. The user confirmed no local legal
+ROM/save test assets are available; source inspection alone does not admit a hook.

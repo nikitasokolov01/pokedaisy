@@ -190,3 +190,20 @@ timing; those require adapter-specific and device tests before registration.
 This gate governs the new framework. Existing opt-in cheats and legacy gameplay
 features are not migrated or certified by Phase 3. Phase 4 must audit their
 interactions before registering any new gameplay implementation.
+
+## Phase 4 rule implementations (not connected to the core)
+
+`enhancements/hgss/` contains independent EXP, cap/progression, text and HM logic.
+The EXP planner produces per-recipient award amounts, not party writes. Cap arithmetic
+uses exact growth thresholds and a resolver over explicit tri-state Gym observations;
+it has no live progression decoder. The text planner bounds ordinary glyph processing
+and yields at every control barrier. The field gate uses one request/context contract
+for world and companion calls, but no native port or world-interaction hook is installed.
+
+There are no new calls from EmulatorEngine, no C/JNI changes and no production plans.
+This separation is intentional while the user has no local legal test assets. It is
+partial Phase 4 work, not enabled gameplay support. Source provenance, approved and
+pending policies, synthetic scope and the admission checklist are in
+[HGSS_MECHANICS.md](HGSS_MECHANICS.md). Every native implementation must separately
+prove its correct game task/renderer boundary, loaded-image hash and signatures,
+reset/load lifecycle, save integrity and feature interactions before registration.

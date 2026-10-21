@@ -280,3 +280,46 @@ is ignored and is not included in Git. Later handoff documentation does not chan
 5. Suspend, resume, use save/load and soft reset with no production hooks. Check
    ordinary game behavior and existing save files. These real-core checks remain
    pending; synthetic state-boundary tests do not replace them.
+
+## Phase 4 mechanics rule verification (2026-10-21)
+
+Phase 4 is partial on `feature/hgss-mechanics`, based on Phase 3 handoff
+`099a93a0801d3261a4436286d25bc980f40f9ceb`. The user explicitly confirmed that no local
+legal HGSS ROM or disposable save test assets are available. The new rule modules
+have no production caller, native port or hook. The empty enhancement registry and
+all four N/A choices remain in place. No game, save, ROM, BIOS or progression data
+was changed or used for testing.
+
+- Baseline: all 23 existing enhancement tests and Android debug build passed;
+  `phase4-baseline.log`, `phase4-baseline-results/`.
+- First implementation run: 57 tests passed, zero failures/errors/skips, and debug
+  build passed; `phase4-first-tests.log`, `phase4-first-results/`. Includes 34 new
+  rule tests; the subsequent trainer-team cross-check is covered by the final run.
+- Final focused run: **104 passed, zero failures/errors/skips**, including 38 Phase 4
+  rule tests, all Phase 3 safeguards, archive handling, translations, controller
+  routing, companion ownership, Android lower-screen host and GBA turbo. Debug APK
+  built successfully; `phase4-final-tests.log`, `phase4-final-results/`.
+- Full run before the final review corrections: **2,966 tests, 2,768 passed, six
+  known Windows baseline failures, 192 skipped**; `phase4-full-tests.log`,
+  `phase4-full-results/`. The failures are exactly the six in the baseline table.
+  This is not a clean full-suite pass. The final focused run checks all subsequent
+  source corrections and three added review regression/source checks.
+- Primary-source audit used public text pinned to pret/pokeheartgold commit
+  `6988158691eb6178cff697cda0428045ddcba5fb`. Six independent CSV digests verify every
+  level-1-through-100 threshold. This proves table correspondence, not native hooks.
+- Source verifier passed against five pinned blobs and independently reproduced the
+  HM mapping digest (`phase4-source-verification.json`). A deliberately modified
+  source copy was rejected with the expected mismatch (`phase4-source-rejection.log`).
+- Translations: 1,261 entries, 1,113 used keys, zero issues. Actual tool-free Claude
+  static review completed; findings/fixes are in REVIEW_LOG.md. No new UI was drawn.
+- An escalated device check returned no connected Android device. No live Thor,
+  native renderer, EXP task, world HM interaction or SRAM result is implied.
+- UI, settings persistence and native code are unchanged by these disconnected
+  rule modules. Phase 3's screenshots document the still-unavailable settings;
+  no new screenshots or device certification are claimed for Phase 4.
+
+All evidence paths above are under ignored `build/fork-review/`. The mechanics,
+policy decisions, separate HG/SS capability matrix and unexecuted game/device
+acceptance procedures are in [HGSS_MECHANICS.md](HGSS_MECHANICS.md). Pending soft-cap
+and HM possession proposals remain explicit arguments, not silently selected defaults.
+Phase 4 cannot pass its native/gameplay gate with only these synthetic rule checks.

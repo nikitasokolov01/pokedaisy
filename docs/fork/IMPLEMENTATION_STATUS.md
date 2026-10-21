@@ -30,7 +30,13 @@ Architecture: [audit](ARCHITECTURE.md). Independent review: [log](REVIEW_LOG.md)
   - [x] Adapter contracts, empty production registry, guarded transactions and state boundaries.
   - [x] Final focused regression run, rendered UI review and independent static review.
   - [ ] Native adapter, legal-ROM gameplay and live Thor acceptance; no production hooks registered.
-- [ ] Phase 4: independently verified EXP Share, caps/accessibility, text speed and HM actions.
+- [ ] Phase 4: partial; independent rule logic implemented, live HGSS enhancements blocked by verification gates.
+  - [x] User-approved EXP award rule with native participant/held-item arithmetic and synthetic tests.
+  - [x] Exact cap arithmetic and nonlinear resolver over supplied observations; soft-boundary policy remains pending.
+  - [x] Bounded text glyph planner that preserves control, wait and callback barriers.
+  - [x] Shared world/companion HM eligibility/action contract; possession policy remains pending.
+  - [ ] Exact-ROM native hooks, live progression/token decoders, signatures and safe-point evidence.
+  - [ ] HG and SS legal-asset tests, save integrity and real Thor gameplay acceptance. User confirms no local test assets.
 - [ ] Phase 5: tracker/rule decisions, transactional challenge snapshots, optional enforcement/dashboard.
 - [ ] Phase 6: expand verified adapters to Platinum, then Gen 5; separate playback/companion/modifiers.
 
@@ -86,6 +92,27 @@ integration branch and includes the Phase 1/2 prerequisites until those PRs merg
 Implementation commit: `47ec1ad943309d817439ad1146b5cd099fcc6382`.
 Local debug APK: `build/fork-review/pokedaisy-phase3-47ec1ad-debug.apk`.
 APK checksum and device steps are in [VERIFICATION.md](VERIFICATION.md).
+
+## Phase 4 continuation
+
+Branch `feature/hgss-mechanics` starts at Phase 3 handoff `099a93a`. The user approved
+the EXP rule and confirmed that no local legal HGSS ROM or disposable save test assets
+are available. See [HGSS_MECHANICS.md](HGSS_MECHANICS.md) for the pinned source audit,
+four independent implementations, policy decisions, feature matrix and required game
+checks. These modules have no production caller or native port. The registry remains
+empty and all four enhancement choices remain unavailable.
+
+Phase 4 is **not complete**: synthetic rules cannot substitute for verified instruction
+signatures, native task integration, actual progression decoding or game/save behavior.
+Soft-cap start/rounding and current-bag HM possession are explicit candidate policies
+pending the user's answers, not enabled defaults. Post-Gym caps and actual accessibility
+decisions remain open. No dangerous hook is half-installed or exposed to the player.
+
+The final 104 focused checks passed, including 38 new rule tests. The broad run had
+2,768 passes, six known Windows baseline failures and 192 skips; final review fixes
+passed the later focused run. The source verifier reproduced the growth/HM metadata
+and rejected deliberate source drift. The Android debug build and translation check
+passed. Detailed evidence and limitations are in [VERIFICATION.md](VERIFICATION.md).
 
 ## Evidence and limitations
 

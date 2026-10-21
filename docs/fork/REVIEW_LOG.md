@@ -165,3 +165,34 @@ Final local review also uses the existing option picker for future choices with 
 than two values, in accordance with the project menu rules. Those choices remain
 unavailable with the empty production registry. Stale-page recovery instructions
 explicitly reopen a library session or relaunch the game.
+
+## Phase 4 mechanics review (2026-10-21)
+
+The authorized authenticated Claude CLI completed a tool-free review of the new rule
+sources, tests, feature/admission document and native EXP source excerpts. Request and
+response are retained as `build/fork-review/phase4-review*.txt`. No ROM, save or secret
+was supplied. The review correctly treats these modules as disconnected rule logic,
+not live gameplay support. Its concrete findings were assessed as follows:
+
+- Accepted: an inaccessible Gym with an unknown defeat flag was omitted from the
+  uncertainty result. Unknown defeat/accessibility now takes priority over the
+  inaccessible branch, with a regression covering ambiguous post-Gym state.
+- Accepted: Fly needs a bounded destination and request-bound validation. Invalid
+  destinations are rejected before inspecting native data; results carry the exact
+  checked request and stale action/destination results cannot invoke the port.
+- Accepted as future-proofing: HM policy handling is an exhaustive enum branch,
+  so adding history-based possession requires an explicit implementation change.
+- Strengthened: HM constants had been inspected against the primary source locally,
+  but the reviewer only received EXP excerpts. A reproducible source checker now
+  validates pinned blobs and independently extracts the HM/item/badge associations;
+  its digest is checked by the Kotlin test, alongside the six growth-curve digests.
+- Qualified: source excerpts absent from the external bundle do not mean they were
+  not inspected locally. HGSS_MECHANICS.md separates source checks, synthetic contract
+  tests and pending native evidence. No native compatibility claim was made.
+- The reviewer found no EXP pooling/boost/rounding or cap arithmetic defect. It agreed
+  that callback/text barriers and unknown native field conditions must remain gated.
+
+Local review also rejects incomplete party slot sequences before calculating pools.
+Final focused tests cover these fixes; the earlier full suite predates the review
+corrections. Soft-cap and HM-possession proposals remain unapproved explicit arguments.
+No native hook, adapter, progression decoder or production patch is registered.
