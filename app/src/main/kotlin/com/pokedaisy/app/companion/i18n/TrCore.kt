@@ -2,6 +2,8 @@ package com.pokedaisy.app.companion.i18n
 
 /** The shared menu pieces (OptionSelector, OptionConfirm, on/off values) and the LANGUAGE setting. */
 internal val trCore: Map<String, Tr> = mapOf(
+    "EDIT" to Tr(ja = "へんしゅう", fr = "MODIFIER", de = "BEARBEITEN", it = "MODIFICA", es = "EDITAR", br = "EDITAR", pt = "EDITAR"),
+    "A: SELECT  B: BACK  START: GAME" to Tr(ja = "A: えらぶ  B: もどる  START: ゲーム", fr = "A: CHOISIR  B: RETOUR  START: JEU", de = "A: WAHL  B: ZURÜCK  START: SPIEL", it = "A: SCEGLI  B: INDIETRO  START: GIOCO", es = "A: ELEGIR  B: ATRÁS  START: JUEGO", br = "A: ESCOLHER  B: VOLTAR  START: JOGO", pt = "A: ESCOLHER  B: VOLTAR  START: JOGO"),
     // Keeps the English word beside each one, so a player stuck in a language they can't read finds the way back.
     "LANGUAGE" to Tr(ja = "げんご (LANGUAGE)", fr = "LANGUE (LANGUAGE)", de = "SPRACHE (LANGUAGE)", it = "LINGUA (LANGUAGE)", es = "IDIOMA (LANGUAGE)", br = "IDIOMA (LANGUAGE)", pt = "IDIOMA (LANGUAGE)"),
     "AUTO" to Tr(ja = "オート", fr = "AUTO", de = "AUTO", it = "AUTO", es = "AUTO", br = "AUTO", pt = "AUTO"),

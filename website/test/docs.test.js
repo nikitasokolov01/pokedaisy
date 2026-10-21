@@ -2,13 +2,29 @@
 // every setting the app has is named somewhere in it. See docs/manual/README.md.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { docsApi, docsDir, loadDocs } from '../src/lib/docs.js';
 
 const dir = docsDir();
 const files = readdirSync(dir).filter((f) => f.endsWith('.md'));
 const text = (f) => readFileSync(join(dir, f), 'utf8');
+
+test('Windows and Unix manual files produce identical API content', (t) => {
+  const fixture = mkdtempSync(join(tmpdir(), 'pokedaisy-docs-'));
+  t.after(() => {
+    unlinkSync(join(fixture, 'page.md'));
+    unlinkSync(join(fixture, 'sections.yml'));
+    rmdirSync(fixture);
+  });
+  writeFileSync(join(fixture, 'sections.yml'), '- id: player\n  title: Player\n');
+  const page = '---\ntitle: Controls\nsummary: Controller setup and recovery.\nsection: player\n---\n\n## Buttons\n\nPress a button.\n';
+  writeFileSync(join(fixture, 'page.md'), page);
+  const unix = docsApi(loadDocs(fixture), 'https://pokedaisy.com');
+  writeFileSync(join(fixture, 'page.md'), page.replace(/\n/g, '\r\n'));
+  assert.deepEqual(docsApi(loadDocs(fixture), 'https://pokedaisy.com'), unix);
+});
 
 test('every page parses, links resolve and screenshots exist', () => {
   const docs = loadDocs();

@@ -27,6 +27,7 @@ import com.pokedaisy.app.companion.i18n.tr
 import com.pokedaisy.app.companion.data.showsBattle
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,7 +82,6 @@ class PokeDaisyActivity : Activity() {
      * them), so the capture runs here and [keyCapturePopup] shows it over the game. */
     private val keyCapture = com.pokedaisy.app.companion.KeyCapture().apply { onActiveChanged = ::onKeyCapture }
     private lateinit var keyCapturePopup: ComposeView
-    private lateinit var hotkeys: Hotkeys
     /** [Prefs.hotkeysEnabled], read on resume; off, every key goes to the game. */
     private var hotkeysOn = true
     private lateinit var engine: EmulatorEngine
@@ -104,6 +104,7 @@ class PokeDaisyActivity : Activity() {
 
     private val inputDeviceListener = object : android.hardware.input.InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(id: Int) {
+            refreshControllerIdentities()
             InputDevice.getDevice(id)?.takeIf(::isGamepad)?.let {
                 pads[id] = it.name
                 showHud(tr("Controller connected: {0}", it.name))
@@ -111,16 +112,53 @@ class PokeDaisyActivity : Activity() {
             syncTouchControls()
         }
         override fun onInputDeviceRemoved(id: Int) {
+            // Ignore a peripheral that never supplied game input (for example a mouse).
+            playerInputDevices.remove(id)
+            controllerRouter.releaseDevice(id)
+            companionNavigation.releaseDevice(id)
+            clearCompanionStick(id)
+            controllerIdentities.remove(id)
+            refreshControllerIdentities()
+            if (::view.isInitialized) { view.camera.stickX = 0f; view.camera.stickY = 0f }
             pads.remove(id)?.let { showHud(tr("Controller disconnected: {0}", it)) }
             // A keyboard-mode controller (see physicalPadUsed) may have been the one that went.
             physicalPadUsed = false
             syncTouchControls()
         }
-        override fun onInputDeviceChanged(id: Int) = syncTouchControls()
+        override fun onInputDeviceChanged(id: Int) { clearCompanionStick(id); companionNavigation.releaseDevice(id); controllerRouter.releaseDevice(id); refreshControllerIdentities(); syncTouchControls() }
     }
 
     /** Connected controllers by device id, with their names (for the disconnect notice). */
     private val pads = HashMap<Int, String>()
+    /** Input sources seen since the last reset; button ownership is maintained by ControllerInputRouter. */
+    private val playerInputDevices = HashSet<Int>()
+    private val controllerIdentities = HashMap<Int, String?>()
+    private val inputProfiles get() = InputProfiles(getExternalFilesDir(null) ?: filesDir)
+    private var profileController by mutableStateOf<String?>(null)
+    private var profileForGame by mutableStateOf(true)
+    private var profileError by mutableStateOf<String?>(null)
+    private val profileScope get() = InputProfileScope(if (profileForGame) romKey.takeIf(String::isNotEmpty) else null, profileController)
+    private val controllerRouter by lazy {
+        ControllerInputRouter(input, { id ->
+            val key = ControllerDevices.key(id)
+            controllerIdentities[id] = key
+            val p = inputProfiles.resolve(InputProfileScope(romKey.takeIf(String::isNotEmpty), key))
+            if (romIsNds) p.copy(hotkeys = p.hotkeys - Hotkeys.Action.REWIND_HOLD) else p
+        }, ::handleHotkey, ::onCompanionInput)
+    }
+    private fun refreshControllerIdentities() {
+        controllerIdentities.toMap().forEach { (id, old) ->
+            if (ControllerDevices.key(id) != old) { controllerRouter.releaseDevice(id); controllerIdentities.remove(id) }
+        }
+    }
+    private fun reloadInputProfiles() {
+        releasePlayerInput()
+        input.setControls(GbaControls.mapping(inputProfiles.resolve(InputProfileScope(game = romKey.takeIf(String::isNotEmpty))).buttons))
+        controllerRouter.hotkeysEnabled = hotkeysOn
+    }
+    private fun saveInputProfile(change: () -> Unit) {
+        profileError = runCatching { change(); reloadInputProfiles() }.exceptionOrNull()?.message
+    }
 
     /**
      * A real button played the game: AUTO hides the touch controls from then on, even for a
@@ -163,6 +201,7 @@ class PokeDaisyActivity : Activity() {
     private val panelBack = com.pokedaisy.app.companion.ui.CompanionBack()
     /** The game's buttons for the one-screen companion while it's the window over the game (SidePanel). */
     private val panelKeys = com.pokedaisy.app.companion.ui.CompanionKeys()
+    private val dsKeys = com.pokedaisy.app.companion.ui.CompanionKeys()
     private val portraitBack = com.pokedaisy.app.companion.ui.CompanionBack()
     /** BACK for the FIELD HUD's panels (map, bag, wild, summary): the first thing a BACK tap closes. */
     private val hudBack = com.pokedaisy.app.companion.ui.CompanionBack()
@@ -306,7 +345,10 @@ class PokeDaisyActivity : Activity() {
 
     /** The one-screen companion's window goes away (a battle pick, FLY): the game's to see now. Any thread. */
     private fun closeCompanionWindow() {
-        runOnUiThread { if (::sidePanel.isInitialized) sidePanel.closeWindow() }
+        runOnUiThread {
+            dsBottom?.show(false, remember = false)
+            if (::sidePanel.isInitialized) sidePanel.closeWindow()
+        }
     }
 
     /** USE / GIVE / TAKE, the way the game does them (FieldItems.kt): the retail games in every language mapped so
@@ -549,7 +591,7 @@ class PokeDaisyActivity : Activity() {
             com.pokedaisy.app.companion.QuickAction.SAVE_STATE, com.pokedaisy.app.companion.QuickAction.LOAD_STATE,
             com.pokedaisy.app.companion.QuickAction.FF -> true
             // One screen held sideways: the companion's window or side panel (upright, it's always open).
-            com.pokedaisy.app.companion.QuickAction.COMPANION -> hudSingleScreen.value && !hudUpright.value
+            com.pokedaisy.app.companion.QuickAction.COMPANION -> dsBottom != null || hudSingleScreen.value && !hudUpright.value
         }
 
         override fun run(action: com.pokedaisy.app.companion.QuickAction) = runQuickAction(action)
@@ -599,7 +641,7 @@ class PokeDaisyActivity : Activity() {
             com.pokedaisy.app.companion.QuickAction.SAVE_STATE -> engine.requestSaveState(engine.currentSlot)
             com.pokedaisy.app.companion.QuickAction.LOAD_STATE -> engine.requestLoadState(engine.currentSlot)
             com.pokedaisy.app.companion.QuickAction.FF -> engine.toggleFastForward()
-            com.pokedaisy.app.companion.QuickAction.COMPANION -> if (::sidePanel.isInitialized) sidePanel.openPanel()
+            com.pokedaisy.app.companion.QuickAction.COMPANION -> if (dsBottom != null) dsBottom?.show(true) else if (::sidePanel.isInitialized) sidePanel.openPanel()
         }
     }
 
@@ -1017,7 +1059,7 @@ class PokeDaisyActivity : Activity() {
             Prefs(this@PokeDaisyActivity).ffMode = mode
             if (::engine.isInitialized) engine.ffMode = mode
         }
-        override val touchStyle get() = Prefs(this@PokeDaisyActivity).touchControlsStyle
+        override val touchStyle get() = Prefs(this@PokeDaisyActivity).touchControlsStyle.copy(ds = romIsNds)
         override fun setTouchStyle(style: com.pokedaisy.app.companion.TouchControlsStyle) {
             Prefs(this@PokeDaisyActivity).touchControlsStyle = style
             runOnUiThread { syncTouchControls() }
@@ -1027,28 +1069,32 @@ class PokeDaisyActivity : Activity() {
         override fun editTouchLayout() = runOnUiThread { openTouchEditor() }
         override val touchRevision get() = touchRev.intValue
         override val touchControlsShown get() = ::touchControls.isInitialized && touchControls.visibility == View.VISIBLE
-        override fun gbaControlBindings() = GbaControls.rawBindings(getExternalFilesDir(null) ?: filesDir)
+        override val dsControls get() = romIsNds
+        override val inputControllers get() = ControllerDevices.choices()
+        override val inputController get() = profileController
+        override fun setInputController(id: String?) { keyCapture.cancel(); profileController = id }
+        override val inputForGame get() = profileForGame
+        override fun setInputForGame(on: Boolean) { keyCapture.cancel(); profileForGame = on }
+        override fun resetInputProfile() = saveInputProfile { inputProfiles.reset(profileScope) }
+        override val inputProfileError get() = profileError?.let { "Could not save controller profile." }
+            ?: if (inputProfiles.unreadable(profileScope)) "Controller profile could not be read. Using inherited settings." else null
+        override fun acceptsInputDevice(id: Int) = profileController == null || ControllerDevices.key(id) == profileController
+        override fun gbaControlBindings() = inputProfiles.resolve(profileScope).buttons
         override val keyCapture get() = this@PokeDaisyActivity.keyCapture
         override fun setGbaControlBinding(btn: GbaControls.Btn, keyName: String) {
-            val code = keyCodeForName(keyName) ?: return
-            GbaControls.setBinding(getExternalFilesDir(null) ?: filesDir, btn, code)
-            input.setControls(GbaControls.load(getExternalFilesDir(null) ?: filesDir))
+            saveInputProfile { inputProfiles.bind(profileScope, btn, keyName) }
         }
         override fun clearGbaControlBinding(btn: GbaControls.Btn) {
-            GbaControls.clearBinding(getExternalFilesDir(null) ?: filesDir, btn)
-            input.setControls(GbaControls.load(getExternalFilesDir(null) ?: filesDir))
+            saveInputProfile { inputProfiles.bind(profileScope, btn, null) }
         }
         override val hotkeysEnabled get() = hotkeysOn
         override fun setHotkeysEnabled(on: Boolean) {
             Prefs(this@PokeDaisyActivity).hotkeysEnabled = on
             setHotkeysOn(on)
         }
-        override fun hotkeyBindings() = Hotkeys.load(getExternalFilesDir(null) ?: filesDir).rawBindings
+        override fun hotkeyBindings() = inputProfiles.resolve(profileScope).hotkeys
         override fun setHotkeyBinding(action: Hotkeys.Action, keyNames: List<String>?, takeFrom: List<Hotkeys.Action>) {
-            val dir = getExternalFilesDir(null) ?: filesDir
-            if (keyNames.isNullOrEmpty()) Hotkeys.clearBinding(dir, action)
-            else Hotkeys.setBindingNamed(dir, action, keyNames, takeFrom)
-            hotkeys = Hotkeys.load(getExternalFilesDir(null) ?: filesDir)
+            saveInputProfile { inputProfiles.bind(profileScope, action, keyNames, takeFrom) }
         }
         override fun restartGame() = this@PokeDaisyActivity.restartGame()
         override fun closeGame() {
@@ -1057,6 +1103,7 @@ class PokeDaisyActivity : Activity() {
         override val canCloseCompanion get() = secondScreen() != null
         override fun closeCompanion() {
             runOnUiThread {
+                if (romIsNds && dsBottom != null) { dsBottom?.show(false); return@runOnUiThread }
                 val target = secondScreen()
                 val swap = target != null && Screens.swapped(this@PokeDaisyActivity, Prefs(this@PokeDaisyActivity), target) && !debugMirror && !romIsNds
                 this@PokeDaisyActivity.companionClosed = true
@@ -1400,7 +1447,7 @@ class PokeDaisyActivity : Activity() {
         root.setViewTreeSavedStateRegistryOwner(owner)
         root.setViewTreeViewModelStoreOwner(owner)
         // Its panel and tabs above the FIELD HUD (which sits above the touch controls).
-        sidePanel = SidePanel(root, view, touchControls, Prefs(this), panelBack, panelKeys, playClick, under = fieldHud, onWindow = ::onCompanionWindow, companion = {
+        sidePanel = SidePanel(root, view, touchControls, Prefs(this), panelBack, panelKeys, playClick, under = fieldHud, onWindow = { onCompanionWindow() }, companion = {
             val snap by telemetry.snapshot.collectAsState()
             CompanionScreen(snap, stateSlots, companionSettings, battleInput, back = panelBack, keys = panelKeys, clickSound = playClick, achievements = RetroAchievements, statusBar = companionStatusBar, itemUse = itemUse, fly = flyAction, askForSupport = askForSupport, gamePick = gamePick, shareBestEffort = shareBestEffort)
         })
@@ -1413,7 +1460,6 @@ class PokeDaisyActivity : Activity() {
         syncOrientation(secondScreen() != null)
         syncGameScreen()
 
-        hotkeys = Hotkeys.load(getExternalFilesDir(null) ?: filesDir)
         displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         inputManager = getSystemService(Context.INPUT_SERVICE) as android.hardware.input.InputManager
 
@@ -1477,6 +1523,7 @@ class PokeDaisyActivity : Activity() {
             else -> null
         }
         input.ds = nds
+        reloadInputProfiles()
         val gba = !gameBoy && !nds
         // EXPAND: the GBA games pk_wide.c knows, and Game Boy ones pk_wide_gb.c does (Yellow, Crystal); the field reads are GBA only.
         wideGame = if (nds) WideScreen.OFF else WideScreen.gameFor(crc)
@@ -1745,9 +1792,8 @@ class PokeDaisyActivity : Activity() {
         view.onResume()
         // Pick up any Settings changes made since launch.
         if (romCode.isNotEmpty()) com.pokedaisy.app.companion.i18n.L10n.apply(Prefs(this).appLanguage, romCode)
-        hotkeys = Hotkeys.load(getExternalFilesDir(null) ?: filesDir)
         hotkeysOn = Prefs(this).hotkeysEnabled
-        input.setControls(GbaControls.load(getExternalFilesDir(null) ?: filesDir))
+        reloadInputProfiles()
         if (::engine.isInitialized) {
             engine.ffMaxSpeed = Prefs(this).ffMaxSpeed
             engine.ffMusicMode = Prefs(this).ffMusicMode
@@ -1863,6 +1909,7 @@ class PokeDaisyActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
+        releasePlayerInput()
         // Android's pause around moving this activity to the other screen (moveToDisplay): the game runs on.
         val moving = movingSince != 0L && android.os.SystemClock.uptimeMillis() - movingSince < MOVE_PAUSE_MS
         movingSince = 0L
@@ -1884,6 +1931,7 @@ class PokeDaisyActivity : Activity() {
         runCatching { unregisterReceiver(batteryReceiver) }
         presentation?.let { it.dismiss(); it.releaseContent() }
         presentation = null
+        if (mainCompanion !is NdsBottomHost) dsBottom = null
         ffMusicPlayer.release()
         if (::engine.isInitialized && romKey.isNotEmpty()) {
             Prefs(this).setSpeedIndexFor(romKey, engine.speedIndex)
@@ -1954,8 +2002,8 @@ class PokeDaisyActivity : Activity() {
     private fun syncPresentation() {
         if (!::engine.isInitialized) return
         val target: Display? = secondScreen()
-        // A DS game's touch screen stays up whatever CLOSE COMPANION says: the companion is on the game's screen, as on
-        // one-screen devices. SWAP SCREENS trades its two screens like a GBA game's: the top one (the stage) goes to
+        // DS switch mode keeps the game above and gives the companion exclusive lower-screen ownership.
+        // SWAP SCREENS trades its two screens like a GBA game's: the top one (the stage) goes to
         // the second display, the touch screen with its COMPANION toggle (NdsBottomHost) to this one.
         val swap = target != null && Screens.swapped(this, Prefs(this), target) && !debugMirror
         shownOnDisplay = Screens.displayOf(this)
@@ -1979,26 +2027,27 @@ class PokeDaisyActivity : Activity() {
         if (current != null && target != null && current.display.displayId == target.displayId &&
             current.isShowing && swap == (mainCompanion != null)
         ) return
+        releasePlayerInput()
         current?.let { it.dismiss(); it.releaseContent() }
         presentation = null
         dsBottom = null
         syncOrientation(target != null)
         // One screen: the companion goes in a panel beside / under the game instead
         // (not with the debug mirror, which already shows it there).
-        syncSingleScreen((target == null || romIsNds) && !debugMirror)
+        syncSingleScreen(target == null && !debugMirror)
         if (swap) showMainCompanion() else showStage()
         if (target == null) return
         presentation = runCatching {
             DualScreenPresentation(this, target) { ctx ->
                 if (swap) stage
                 // A DS game: its touch screen down here (NdsBottomFrame), or the companion in its place - the player's
-                // pick, switched from either (NdsBottomHost); the companion's window over the game above stays too.
+                // pick, switched from either (NdsBottomHost).
                 else if (romIsNds) NdsBottomHost(ctx, {
                     DualScreenPresentation.companionView(
                         ctx, telemetry, stateSlots, companionSettings, battleInput, companionBack, playClick, RetroAchievements,
-                        initialTab = companionStartTab, initialSettingsRow = companionStartRow, statusBar = companionStatusBar, itemUse = itemUse, fly = flyAction, askForSupport = askForSupport, gamePick = gamePick, shareBestEffort = shareBestEffort,
+                        keys = dsKeys, initialTab = companionStartTab, initialSettingsRow = companionStartRow, statusBar = companionStatusBar, itemUse = itemUse, fly = flyAction, askForSupport = askForSupport, gamePick = gamePick, shareBestEffort = shareBestEffort,
                     )
-                }, Prefs(this).dsBottomCompanion) { on -> Prefs(this).dsBottomCompanion = on }.also { dsBottom = it }
+                }, Prefs(this).dsBottomCompanion, ::onDsCompanionSwitch).also { dsBottom = it }
                 else DualScreenPresentation.companionView(
                     ctx, telemetry, stateSlots, companionSettings, battleInput, companionBack, playClick, RetroAchievements,
                     initialTab = companionStartTab, initialSettingsRow = companionStartRow, statusBar = companionStatusBar, itemUse = itemUse, fly = flyAction, askForSupport = askForSupport, gamePick = gamePick, shareBestEffort = shareBestEffort,
@@ -2007,6 +2056,7 @@ class PokeDaisyActivity : Activity() {
         }.onFailure { Log.w("pokedaisy", "presentation failed", it) }.getOrNull()
         companionStartTab = "PARTY"
         companionStartRow = null
+        if (presentation == null && mainCompanion !is NdsBottomHost) dsBottom = null
         if (presentation == null && swap) {
             // The game has to be somewhere: back here, the companion beside it.
             showStage()
@@ -2089,7 +2139,7 @@ class PokeDaisyActivity : Activity() {
     // A move between two screens of one size changes no configuration; the moved activity gets the focus.
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) followDisplay()
+        if (hasFocus) followDisplay() else releasePlayerInput()
     }
 
     /** The game's stage as this activity's content (dropping the swapped companion). */
@@ -2119,11 +2169,11 @@ class PokeDaisyActivity : Activity() {
         val companion = {
             DualScreenPresentation.companionView(
                 this, telemetry, stateSlots, companionSettings, battleInput, companionBack, playClick, RetroAchievements,
-                initialTab = companionStartTab, initialSettingsRow = companionStartRow, statusBar = companionStatusBar, itemUse = itemUse, fly = flyAction, askForSupport = askForSupport, gamePick = gamePick, shareBestEffort = shareBestEffort,
+                keys = dsKeys.takeIf { romIsNds }, initialTab = companionStartTab, initialSettingsRow = companionStartRow, statusBar = companionStatusBar, itemUse = itemUse, fly = flyAction, askForSupport = askForSupport, gamePick = gamePick, shareBestEffort = shareBestEffort,
             )
         }
         val view = if (romIsNds) {
-            NdsBottomHost(this, companion, Prefs(this).dsBottomCompanion) { on -> Prefs(this).dsBottomCompanion = on }.also { dsBottom = it }
+            NdsBottomHost(this, companion, Prefs(this).dsBottomCompanion, ::onDsCompanionSwitch).also { dsBottom = it }
         } else companion()
         view.apply {
             setViewTreeLifecycleOwner(owner)
@@ -2354,8 +2404,8 @@ class PokeDaisyActivity : Activity() {
     /** Show the on-screen controls per SETTINGS > TOUCH CONTROLS > SHOW (AUTO: only with no controller), in its style. */
     private fun syncTouchControls() {
         if (!::touchControls.isInitialized) return
-        val style = Prefs(this).touchControlsStyle
-        val show = touchEditor == null && when (style.show) {
+        val style = Prefs(this).touchControlsStyle.copy(ds = romIsNds)
+        val show = touchEditor == null && !companionOwnsInput && when (style.show) {
             com.pokedaisy.app.companion.TouchShow.ALWAYS -> true
             com.pokedaisy.app.companion.TouchShow.NEVER -> false
             com.pokedaisy.app.companion.TouchShow.AUTO -> !physicalPadUsed && !Controllers.anyConnected()
@@ -2380,9 +2430,15 @@ class PokeDaisyActivity : Activity() {
     /** The touch controls' buttons: the game's, or the QUICK MENU's while it's open (each newly held one a press). Its
      * scrim takes new touches then, so that's a finger already down (the MENU button's) sliding on. */
     private var touchHeld = 0
+    private var touchUntilNeutral = false
     private fun onTouchKeys(gba: Int, turbo: Int) {
+        if (gba == 0) touchUntilNeutral = false
         val newly = gba and touchHeld.inv()
         touchHeld = gba
+        if (companionOwnsInput || touchUntilNeutral) {
+            input.setTouchBits(0)
+            return
+        }
         if (quickMenu.open) {
             input.setTouchBits(0)
             menuKeyFor(newly)?.let { quickMenu.key(it) }
@@ -2461,7 +2517,7 @@ class PokeDaisyActivity : Activity() {
             setContent {
                 androidx.compose.runtime.CompositionLocalProvider(com.pokedaisy.app.companion.ui.LocalCompanionBack provides touchEditBack) {
                     com.pokedaisy.app.companion.ui.TouchLayoutEditor(
-                        st, Prefs(this@PokeDaisyActivity).touchControlsStyle, com.pokedaisy.app.companion.ui.rememberGbaTextMetrics(),
+                        st, Prefs(this@PokeDaisyActivity).touchControlsStyle.copy(ds = romIsNds), com.pokedaisy.app.companion.ui.rememberGbaTextMetrics(),
                         onDone = { layout ->
                             val prefs = Prefs(this@PokeDaisyActivity)
                             prefs.touchControlsStyle = prefs.touchControlsStyle.withLayout(st.portrait, layout)
@@ -2487,6 +2543,31 @@ class PokeDaisyActivity : Activity() {
 
     // --- input ---------------------------------------------------------------
 
+    /** Android may never deliver key-up after focus loss, suspend or unplugging a pad. */
+    private fun releasePlayerInput() {
+        controllerRouter.quarantineHeld()
+        clearCompanionStick()
+        companionNavigation.clear()
+        navigationHandler.removeCallbacks(navigationRepeat)
+        dsBottom?.cancelTouch()
+        touchUntilNeutral = touchUntilNeutral || touchHeld != 0
+        controllerIdentities.clear()
+        playerInputDevices.clear()
+        menuHeld.clear()
+        quickHat = 0
+        quickStickOff = false
+        quickStickHold = false
+        touchHeld = 0
+        touchFfDownAt = 0L
+        if (::view.isInitialized) { view.camera.stickX = 0f; view.camera.stickY = 0f }
+        // Touch FF holds do not go through Hotkeys. Preserve the player's toggled FF setting.
+        if (::engine.isInitialized) {
+            engine.setFastForwardHeld(false)
+            engine.setSlowmoHeld(false)
+            engine.setRewindHeld(false)
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         noteKeyDelay(event)
         // The companion's rebind waiting for keys: they're its alone - not the game's, the hotkeys' or BACK's.
@@ -2495,10 +2576,12 @@ class PokeDaisyActivity : Activity() {
             return super.dispatchKeyEvent(event)
         }
         val down = event.action == KeyEvent.ACTION_DOWN
-        menuKeyTakes(event)?.let { return it }
         quickMenuTakes(event)?.let { return it }
-        if (hotkeyTakes(event.keyCode, down)) return true
-        if (input.onKey(event.keyCode, down)) {
+        menuKeyTakes(event)?.let { return it }
+        if (down && event.repeatCount > 0 && (controllerRouter.shortcutFor(event.deviceId, event.keyCode) ||
+                controllerRouter.buttonFor(event.deviceId, event.keyCode) != null)) return true
+        if (controllerRouter.key(event.deviceId, event.keyCode, down)) {
+            if (down) playerInputDevices.add(event.deviceId)
             if (down && !physicalPadUsed && event.device?.isVirtual == false) {
                 physicalPadUsed = true
                 syncTouchControls()
@@ -2520,16 +2603,56 @@ class PokeDaisyActivity : Activity() {
     // --- the companion's window (one screen, SidePanel) -----------------------------
 
     /** Keys pressed while the window was open: the game doesn't see them until they're let go (the B that closed it). */
-    private val menuHeld = HashSet<Int>()
-    /** The joystick's D-pad / stick directions while the window is open, so a new one is a press. */
-    private var menuHat = 0
+    private val menuHeld = HashSet<Pair<Int, Int>>()
+    private val companionOwnsInput get() =
+        (::sidePanel.isInitialized && sidePanel.windowOpen) || dsBottom?.showingCompanion == true
+    private val companionNavigation = CompanionNavigationInput(::sendCompanionKey)
+    private var smoothNavigation = false
+    private var companionStickDevice: Int? = null
+    private fun clearCompanionStick(device: Int? = null) {
+        if (device != null && device != companionStickDevice) return
+        panelKeys.stick(0f, 0f); dsKeys.stick(0f, 0f)
+        companionStickDevice = null
+    }
+    private val navigationHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val navigationRepeat = object : Runnable {
+        override fun run() {
+            if (!companionOwnsInput || quickMenu.open) { companionNavigation.clear(); return }
+            companionNavigation.tick(android.os.SystemClock.uptimeMillis())
+            if (companionNavigation.repeating) navigationHandler.postDelayed(this, 90)
+        }
+    }
 
-    /** The window came up (the buttons are the companion's: the player's held keys let go in the game, which runs
-     * on) or went away (the buttons are the game's again). */
-    private fun onCompanionWindow(open: Boolean) {
-        input.releaseAll()
-        menuHat = 0
-        if (open) view.camera.let { it.stickX = 0f; it.stickY = 0f }
+    private fun onCompanionInput(device: Int, code: Int, down: Boolean) {
+        if (!companionOwnsInput || quickMenu.open) return
+        if (smoothNavigation && down && code in InputCodes.named.values) return
+        companionNavigation.edge(device, code, menuKeyFor(controllerRouter.buttonFor(device, code) ?: 0), down,
+            android.os.SystemClock.uptimeMillis())
+        navigationHandler.removeCallbacks(navigationRepeat)
+        if (companionNavigation.repeating) navigationHandler.postDelayed(navigationRepeat, 90)
+    }
+
+    private fun sendCompanionKey(key: MenuKey, repeat: Boolean) {
+        if (key == MenuKey.L || key == MenuKey.R || key == MenuKey.B || key == MenuKey.START) {
+            companionNavigation.clear()
+            clearCompanionStick()
+        }
+        if (::sidePanel.isInitialized && sidePanel.windowOpen) { sidePanel.menuKey(key, repeat); return }
+        if (dsBottom?.showingCompanion != true) return
+        when (key) {
+            MenuKey.B -> if (!repeat && !companionBack.back()) dsBottom?.show(false)
+            MenuKey.START -> if (!repeat) dsBottom?.show(false)
+            else -> dsKeys.key(key, repeat)
+        }
+    }
+
+    private fun onCompanionWindow() { releasePlayerInput(); syncTouchControls() }
+
+    private fun onDsCompanionSwitch(open: Boolean, remember: Boolean) {
+        releasePlayerInput()
+        if (remember) Prefs(this).dsBottomCompanion = open
+        if (quickMenu.open) quickMenu.key(MenuKey.B)
+        syncTouchControls()
     }
 
     /**
@@ -2557,28 +2680,28 @@ class PokeDaisyActivity : Activity() {
 
     private fun menuKeyTakes(event: KeyEvent): Boolean? {
         val code = event.keyCode
+        val id = event.deviceId to code
         val down = event.action == KeyEvent.ACTION_DOWN
         if (code == KeyEvent.KEYCODE_BACK) return null
-        if (!::sidePanel.isInitialized || !sidePanel.windowOpen) {
-            if (code !in menuHeld) return null
-            if (!down) menuHeld.remove(code)
+        if (!companionOwnsInput) {
+            if (id !in menuHeld) return null
+            if (!down) menuHeld.remove(id)
             return true
         }
-        if (::hotkeys.isInitialized && hotkeysOn) for (e in hotkeys.onKey(code, down)) if (!e.pressed) handleHotkey(e)
+        // The router merges digital and analog edges, resolves chords and profiles, then
+        // sends ordinary presses to onCompanionInput. Android repeats cannot double them.
+        val padKey = event.isFromSource(InputDevice.SOURCE_GAMEPAD) || KeyEvent.isGamepadButton(code) ||
+            code in KeyEvent.KEYCODE_DPAD_UP..KeyEvent.KEYCODE_DPAD_CENTER
+        if (down && event.repeatCount > 0) return if (padKey || controllerRouter.buttonFor(event.deviceId, code) != null ||
+            controllerRouter.shortcutFor(event.deviceId, code)) true else null
+        val result = controllerRouter.routeKey(event.deviceId, code, down, gameAllowed = false)
+        if (result.handled) return true
         if (code == KeyEvent.KEYCODE_BUTTON_MODE) {
             if (!down && !event.isCanceled) companionBackTap()
             return true
         }
-        val key = menuKeyFor(input.buttonFor(code) ?: 0) ?: return super.dispatchKeyEvent(event)
-        if (!down) {
-            menuHeld.remove(code)
-            return true
-        }
-        val first = event.repeatCount == 0
-        // A key held from before the window opened: its repeats aren't presses.
-        if (first) menuHeld.add(code) else if (code !in menuHeld) return true
-        sidePanel.menuKey(key, repeat = !first)
-        return true
+        // Do not let an unmapped controller key activate a focused hidden/main view.
+        return if (padKey) true else null
     }
 
     /**
@@ -2591,16 +2714,13 @@ class PokeDaisyActivity : Activity() {
         val code = event.keyCode
         val down = event.action == KeyEvent.ACTION_DOWN
         if (code == KeyEvent.KEYCODE_BACK) return null
-        if (::hotkeys.isInitialized && hotkeysOn) {
-            for (e in hotkeys.onKey(code, down)) handleHotkey(e)
-            if (hotkeys.consumes(code)) return true
-        }
-        val key = menuKeyFor(input.buttonFor(code) ?: 0) ?: return null
+        if (controllerRouter.routeKey(event.deviceId, code, down, gameAllowed = false).shortcut) return true
+        val key = menuKeyFor(controllerRouter.buttonFor(event.deviceId, code) ?: 0) ?: return null
         if (!down) {
-            menuHeld.remove(code)
+            menuHeld.remove(event.deviceId to code)
             return true
         }
-        menuHeld.add(code)
+        menuHeld.add(event.deviceId to code)
         if (quickMenu.open) quickMenu.key(key)
         return true
     }
@@ -2640,22 +2760,6 @@ class PokeDaisyActivity : Activity() {
         else -> null
     }
 
-    /** A joystick's D-pad / stick while the window is open: each direction that comes on is a press. */
-    private fun menuMotion(event: MotionEvent): Boolean {
-        var bits = GbaInput.motionBits(event) ?: return false
-        // A screen that steers with the stick itself (HeartGold / SoulSilver's map) takes it; the hat stays the D-pad.
-        if (sidePanel.menuStick(event.getAxisValue(MotionEvent.AXIS_X), event.getAxisValue(MotionEvent.AXIS_Y))) {
-            val hx = event.getAxisValue(MotionEvent.AXIS_HAT_X)
-            val hy = event.getAxisValue(MotionEvent.AXIS_HAT_Y)
-            bits = (if (hx < -0.5f) MgbaCore.Key.LEFT else 0) or (if (hx > 0.5f) MgbaCore.Key.RIGHT else 0) or
-                (if (hy < -0.5f) MgbaCore.Key.UP else 0) or (if (hy > 0.5f) MgbaCore.Key.DOWN else 0)
-        }
-        val pressed = bits and menuHat.inv()
-        menuHat = bits
-        menuKeyFor(pressed)?.let { sidePanel.menuKey(it) }
-        return true
-    }
-
     // BACK: a tap is the companion's back (closes what's open there, else
     // nothing - no accidental exit mid-game); hold to return to the ROM library.
     // With one screen a tap also opens / closes the side panel (SidePanel.onBack).
@@ -2685,55 +2789,46 @@ class PokeDaisyActivity : Activity() {
         // then BACK is that companion's, as on one screen, and its OPEN COMPANION puts it back on its own screen.
         if (companionClosed && !companionOverGame.value) {
             reopenCompanion()
-        } else if (dsBottom?.showingCompanion == true && !sidePanel.windowOpen) {
-            // A DS game's companion on the bottom display (and none open over the game): BACK is its own, and with
-            // nothing left to go back from it goes back to the touch screen.
-            if (!hudBack.back() && !companionBack.back()) dsBottom?.show(false)
+        } else if (dsBottom != null && !sidePanel.windowOpen) {
+            if (dsBottom?.showingCompanion != true) dsBottom?.show(true)
+            else if (!companionBack.back()) dsBottom?.show(false)
         } else if (!hudBack.back() && !sidePanel.onBack() && !portraitPanel.onBack()) { companionBack.back(); mirrorBack.back() }
     }
-
-    /** Feeds a key change to the hotkeys (only while they're on); true when it's completing a chord,
-     *  so the game mustn't see it. */
-    private fun hotkeyTakes(keyCode: Int, down: Boolean): Boolean {
-        if (!::hotkeys.isInitialized || !hotkeysOn) return false
-        for (e in hotkeys.onKey(keyCode, down)) handleHotkey(e)
-        return hotkeys.consumes(keyCode)
-    }
-
-    // Many Android handhelds (Retroid's) report L2/R2 as analog axes, not BUTTON_L2/R2 keys: a trigger
-    // crossing half way is that key, through the hotkeys (their switch and bindings, issue #54) and
-    // then the game's controls. Hard-wired to FF / slow-mo holds, they used to ignore both.
-    private var rtDown = false
-    private var ltDown = false
 
     // A controller's stick / D-pad / triggers, before the views: with the companion in this
     // window (side panel, phone upright) a focused ComposeView would see them first.
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
-        if (event.isFromSource(InputDevice.SOURCE_JOYSTICK) && keyCapture.onTriggers(
-                maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)),
-                maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS), event.getAxisValue(MotionEvent.AXIS_THROTTLE)),
-            )
-        ) return true
+        if (keyCapture.onMotion(event)) return true
         if (event.isFromSource(InputDevice.SOURCE_JOYSTICK) && onGenericMotionEvent(event)) return true
         return super.dispatchGenericMotionEvent(event)
     }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
-        if (::engine.isInitialized) {
-            val rt = maxOf(
-                event.getAxisValue(MotionEvent.AXIS_RTRIGGER),
-                event.getAxisValue(MotionEvent.AXIS_GAS),
-                event.getAxisValue(MotionEvent.AXIS_THROTTLE),
-            )
-            val lt = maxOf(
-                event.getAxisValue(MotionEvent.AXIS_LTRIGGER),
-                event.getAxisValue(MotionEvent.AXIS_BRAKE),
-            )
-            if ((rt > 0.5f) != rtDown) { rtDown = rt > 0.5f; triggerKey(KeyEvent.KEYCODE_BUTTON_R2, rtDown) }
-            if ((lt > 0.5f) != ltDown) { ltDown = lt > 0.5f; triggerKey(KeyEvent.KEYCODE_BUTTON_L2, ltDown) }
+        if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) playerInputDevices.add(event.deviceId)
+        val inCompanion = companionOwnsInput
+        if ((inCompanion || quickMenu.open) && event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
+            val keys = if (::sidePanel.isInitialized && sidePanel.windowOpen) panelKeys else dsKeys
+            val defaultStick = listOf(InputCodes.STICK_UP to MgbaCore.Key.UP, InputCodes.STICK_DOWN to MgbaCore.Key.DOWN,
+                InputCodes.STICK_LEFT to MgbaCore.Key.LEFT, InputCodes.STICK_RIGHT to MgbaCore.Key.RIGHT).all { (code, bit) ->
+                controllerRouter.buttonFor(event.deviceId, code) == bit && !controllerRouter.shortcutFor(event.deviceId, code)
+            }
+            // Maps retain their smooth cursor with an ordinary stick; custom stick bindings
+            // go through the same remapped edge path as the hat and face buttons.
+            smoothNavigation = inCompanion && !quickMenu.open && defaultStick && keys.hasStickHandler
+            val shortcut = controllerRouter.axes(event.deviceId, controllerAxes(event), gameAllowed = false)
+            if (smoothNavigation && !shortcut && companionOwnsInput && !controllerRouter.axesQuarantined(event.deviceId)) {
+                val x = event.getAxisValue(MotionEvent.AXIS_X)
+                val y = event.getAxisValue(MotionEvent.AXIS_Y)
+                if (kotlin.math.abs(x) > 0.15f || kotlin.math.abs(y) > 0.15f || companionStickDevice == event.deviceId) {
+                    companionStickDevice = event.deviceId
+                    keys.stick(x, y)
+                }
+            }
+            smoothNavigation = false
+            if (shortcut) return true
+            if (quickMenu.open && quickMotion(event)) return true
+            return true
         }
-        if (::sidePanel.isInitialized && sidePanel.windowOpen && menuMotion(event)) return true
-        if (quickMenu.open && quickMotion(event)) return true
         if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
             // The right stick: WIDE's look-around (WideCamera). Most pads report it as Z / RZ, some as RX / RY.
             fun axis(a: Int, b: Int) = event.getAxisValue(a).let { v -> if (kotlin.math.abs(v) > 0.05f) v else event.getAxisValue(b) }
@@ -2744,38 +2839,35 @@ class PokeDaisyActivity : Activity() {
             if (GbaInput.motionBits(event)?.let { it != 0 } == true) return true
             quickStickHold = false
         }
-        if (input.onMotion(event)) return true
+        if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
+            controllerRouter.axes(event.deviceId, controllerAxes(event))
+            return true
+        }
         return super.onGenericMotionEvent(event)
     }
 
-    /** An analog trigger as its key. A pad that also sends the key itself is harmless: the hotkeys
-     *  fire a chord once while it's held, and the game's button is just set twice. */
-    private fun triggerKey(keyCode: Int, down: Boolean) {
-        // The window over the game: a trigger only lets go of a hold (FF held on it as the window opened).
-        if (::sidePanel.isInitialized && sidePanel.windowOpen) {
-            if (!down) hotkeyTakes(keyCode, false)
-            return
-        }
-        if (!hotkeyTakes(keyCode, down)) input.onKey(keyCode, down)
-    }
+    private fun controllerAxes(event: MotionEvent) = InputCodes.axes(
+        event.getAxisValue(MotionEvent.AXIS_HAT_X), event.getAxisValue(MotionEvent.AXIS_HAT_Y),
+        event.getAxisValue(MotionEvent.AXIS_X), event.getAxisValue(MotionEvent.AXIS_Y),
+        maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)),
+        maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS), event.getAxisValue(MotionEvent.AXIS_THROTTLE)))
 
     /** A companion rebind started / ended: its popup over the game, and nothing left held - the game's keys, a held
      * FF / slow-mo / rewind, a half-pressed chord, the right stick's look-around - since their releases go to it. */
     private fun onKeyCapture(on: Boolean) {
+        releasePlayerInput()
         if (::keyCapturePopup.isInitialized) keyCapturePopup.visibility = if (on) View.VISIBLE else View.GONE
         input.releaseAll()
-        rtDown = false; ltDown = false
         if (::view.isInitialized) { view.camera.stickX = 0f; view.camera.stickY = 0f }
         if (::engine.isInitialized) { engine.setFastForwardHeld(false); engine.setSlowmoHeld(false); engine.setRewindHeld(false) }
-        hotkeys = Hotkeys.load(getExternalFilesDir(null) ?: filesDir)
     }
 
     /** Turns the hotkeys on/off from the companion. Off lets go of any held one (FF / slow-mo
      * hold) and forgets the keys held so far, so a chord can't fire half-pressed once back on. */
     private fun setHotkeysOn(on: Boolean) {
         hotkeysOn = on
+        controllerRouter.hotkeysEnabled = on
         if (::engine.isInitialized) { engine.setFastForwardHeld(false); engine.setSlowmoHeld(false) }
-        hotkeys = Hotkeys.load(getExternalFilesDir(null) ?: filesDir)
     }
 
     private fun handleHotkey(e: Hotkeys.Event) {
@@ -2810,12 +2902,27 @@ class PokeDaisyActivity : Activity() {
             Hotkeys.Action.EXIT_GAME -> if (e.pressed) exitGame()
             Hotkeys.Action.RESTART_GAME -> if (e.pressed) restartGame()
             Hotkeys.Action.CLOSE_APP -> if (e.pressed) closeApp()
+            Hotkeys.Action.SWAP_SCREENS -> if (e.pressed) {
+                releasePlayerInput()
+                companionSettings.setSwapScreens(!companionSettings.swapScreens)
+            }
+            Hotkeys.Action.COMPANION -> if (e.pressed) {
+                if (romIsNds && dsBottom != null) dsBottom?.show(dsBottom?.showingCompanion != true)
+                else companionBackTap()
+            }
+            Hotkeys.Action.SCREENSHOT -> if (e.pressed) {
+                val dir = File(getExternalFilesDir(null) ?: filesDir, "screenshots")
+                val dest = File(dir, "pokedaisy-${System.currentTimeMillis()}-${java.util.UUID.randomUUID().toString().take(8)}.png")
+                engine.requestScreenshot(dest) { ok -> runOnUiThread { showHud(if (ok) tr("Screenshot saved") else tr("Screenshot failed")) } }
+            }
             Hotkeys.Action.QUICK_MENU -> {
                 val wasOpen = quickMenu.open
                 quickMenu.trigger(e.pressed)
                 // Opened: the buttons are the menu's now, so a held direction stops walking.
                 if (!wasOpen && quickMenu.open) {
-                    input.releaseAll()
+                    controllerRouter.suspendGame()
+                    clearCompanionStick()
+                    companionNavigation.clear()
                     quickHat = 0
                     quickStickHold = false
                     hudCloseTick.intValue++

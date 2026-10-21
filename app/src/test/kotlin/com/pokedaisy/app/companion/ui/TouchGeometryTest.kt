@@ -15,6 +15,21 @@ import org.junit.Test
 /** TOUCH CONTROLS' layouts: every preset fits its area without overlaps, SIDES stays off the picture, a moved
  * button comes back where it was left, and the D-pad reads the directions it should. */
 class TouchGeometryTest {
+    @Test fun dsFallbackIncludesBothExtendedButtonsInEveryPreset() {
+        for ((w, h) in listOf(1920f to 1080f, 1080f to 1920f, 960f to 540f)) for (preset in TouchPreset.entries) {
+            val style = TouchControlsStyle(ds = true, preset = preset)
+            val p = TouchGeometry.place(style, w, h, 2f, portrait = h > w, gameAspect = 4f / 3f)
+            assertEquals(style.shown(false).toSet(), p.items.map { it.button }.toSet())
+            for (button in listOf(TouchButton.DS_X, TouchButton.DS_Y)) {
+                val item = p.item(button)!!
+                assertTrue(item.left >= 0 && item.top >= 0 && item.right <= w && item.bottom <= h)
+                assertFalse(TouchControlsStyle().shown(false).contains(button))
+            }
+            for (i in p.items.indices) for (j in i + 1 until p.items.size)
+                assertFalse("$preset ${w}x$h: ${p.items[i].button} / ${p.items[j].button}", overlap(p.items[i], p.items[j]))
+            assertEquals(0xC00, TouchButton.DS_X.gba or TouchButton.DS_Y.gba)
+        }
+    }
     private val dp = 2.625f
     private val allExtras = TouchControlsStyle(extras = TouchButton.extras.toSet())
 

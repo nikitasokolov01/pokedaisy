@@ -202,9 +202,10 @@ under LANGUAGE in either Settings screen. Species, move and item names and the G
 - **Overlays** (optional, Settings > OVERLAY): a frame around the game - two of PokeDaisy's own, or your
   own RetroArch overlays (a `.cfg` with its PNG, a `.zip` of them, or any PNG with a see-through screen).
   None come bundled: bring the ones you already use. Pick them from either screen.
-- **Controls**: remap every game button and hotkey, or turn hotkeys off. X and Y
-  are a second START and SELECT, like the menu and registered-item buttons in the
-  DS games. **TURBO A** and **TURBO B** can go on any button (GAME BUTTONS): held, they
+- **Controls**: remap face, shoulder and menu buttons and hotkeys, or turn hotkeys off.
+  DS games name their X and Y bindings explicitly in GAME BUTTONS; on GB/GBC/GBA
+  those shared bindings are a second START and SELECT. D-pad and stick directions
+  are currently fixed. **TURBO A** and **TURBO B** can go on any button (GAME BUTTONS): held, they
   press A / B over and over, in game time, so they keep up with fast-forward.
   **TOUCH CONTROLS** appear when no controller is connected, and hide once a
   controller is used: ready-made layouts (SIDES keeps them in the bars beside the

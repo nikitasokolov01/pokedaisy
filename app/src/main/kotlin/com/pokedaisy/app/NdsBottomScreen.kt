@@ -10,25 +10,18 @@ import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import android.view.Gravity
-import com.pokedaisy.app.companion.i18n.tr
-import com.pokedaisy.app.companion.ui.OptionButton
-import com.pokedaisy.app.companion.ui.rememberGbaTextMetrics
+import com.pokedaisy.app.companion.ui.DsScreenSwitch
 import java.nio.ByteBuffer
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * A DS game's bottom (touch) screen on the bottom display, where the companion goes for a GBA game: the DS's own
- * picture and its stylus from this screen's touches. The companion goes on the game's screen instead, as on a
- * one-screen device (PokeDaisyActivity.syncPresentation). The frame is copied between frames on the emu thread
+ * picture and its stylus from this screen's touches. NdsBottomHost switches it with the companion. The frame is copied between frames on the emu thread
  * ([NdsBottomFrame.publish]), like the top screen's ([EmulatorView.publishFrame]).
  */
 object NdsBottomFrame {
@@ -75,8 +68,7 @@ object NdsBottomFrame {
 
 /**
  * The bottom display for a DS game on two screens: the DS touch screen, or the companion in its place (the player's
- * pick, Prefs.dsBottomCompanion). One button switches them, in the same place for both: centred in the bar the touch
- * screen's 4:3 leaves under it (COMPANION, or GAME SCREEN back), the companion taking the touch screen's area above it.
+ * pick, Prefs.dsBottomCompanion). One button switches them, in the same place for both: centred in a reserved bar under the touch image (COMPANION, or GAME SCREEN back), the companion taking the touch screen's area above it.
  * BACK with nothing left to go back from also returns to the touch screen (PokeDaisyActivity.companionBackTap).
  */
 @SuppressLint("ViewConstructor")
@@ -84,18 +76,16 @@ class NdsBottomHost(
     context: Context,
     companion: () -> View,
     showCompanion: Boolean,
-    /** The player switched: true = the companion now. */
-    private val onSwitch: (Boolean) -> Unit,
+    /** Every ownership change; remember is false for a temporary return after a game action. */
+    private val onSwitch: (companion: Boolean, remember: Boolean) -> Unit,
+    touchSink: (Boolean, Int, Int) -> Unit = { down, x, y -> MgbaCore.pkNdsTouch(down, x, y) },
 ) : FrameLayout(context) {
-    private val touch = NdsBottomFrame.content(context)
+    private val touch = NdsTouchScreenView(context, touchSink)
     private val companionView = companion()
     private var label by mutableStateOf(showCompanion)
     private val button = CompanionColors.track(ComposeView(context)).apply {
         setContent {
-            val m = rememberGbaTextMetrics()
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                OptionButton(if (label) tr("GAME SCREEN") else tr("COMPANION"), m, onClick = { show(!showingCompanion) })
-            }
+            DsScreenSwitch(label) { show(!showingCompanion) }
         }
     }
     var showingCompanion = showCompanion
@@ -109,42 +99,47 @@ class NdsBottomHost(
         apply(showCompanion)
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        // The touch screen's height at its own 4:3 (NdsTouchScreenView), the button's bar the rest; a display with no
-        // room under it keeps a bar of a button's height, the companion above it.
-        val screenH = minOf(h, (minOf(w.toFloat() / NdsBottomFrame.W, h.toFloat() / NdsBottomFrame.H) * NdsBottomFrame.H).toInt())
-        val minBar = (resources.displayMetrics.density * 56).toInt()
-        val bar = maxOf(h - screenH, minBar)
-        post {
-            companionView.layoutParams = (companionView.layoutParams as LayoutParams).apply { height = h - bar }
-            button.layoutParams = (button.layoutParams as LayoutParams).apply { height = bar }
-            requestLayout()
-        }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val h = MeasureSpec.getSize(heightMeasureSpec)
+        // Both surfaces stop above the bar, including a wide/swapped display with no natural bottom letterbox.
+        val screenH = NdsTouchRect.contentHeight(w, h, (resources.displayMetrics.density * 72).toInt())
+        val bar = h - screenH
+        if (touch.layoutParams.height != screenH) touch.cancelTouch()
+        touch.layoutParams.height = screenH
+        companionView.layoutParams.height = screenH
+        button.layoutParams.height = bar
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
     /** Shows the companion ([on]) or the touch screen, and tells [onSwitch] when that's a change. */
-    fun show(on: Boolean) {
+    fun show(on: Boolean, remember: Boolean = true) {
         if (on == showingCompanion) return
         apply(on)
-        onSwitch(on)
+        onSwitch(on, remember)
     }
 
     private fun apply(on: Boolean) {
+        touch.cancelTouch()
+        companionView.findFocus()?.clearFocus()
         showingCompanion = on
         label = on
         companionView.visibility = if (on) VISIBLE else GONE
         touch.visibility = if (on) GONE else VISIBLE
         // No stylus left down on a screen that's gone.
-        if (on) MgbaCore.pkNdsTouch(false, 0, 0)
     }
+
+    fun cancelTouch() = touch.cancelTouch()
 }
 
 /** The DS's bottom screen, as large as fits at its own 4:3, top-centred; touches on it are the stylus. */
-class NdsTouchScreenView(context: Context) : View(context) {
+class NdsTouchScreenView(context: Context, touchSink: (Boolean, Int, Int) -> Unit = { down, x, y -> MgbaCore.pkNdsTouch(down, x, y) }) : View(context) {
     private val bitmap = Bitmap.createBitmap(NdsBottomFrame.W, NdsBottomFrame.H, Bitmap.Config.ARGB_8888)
     private val paint = Paint().apply { isFilterBitmap = false }
     private val dst = Rect()
+    private val stylus = NdsTouchInput(touchSink)
+
+    fun cancelTouch() = stylus.cancel()
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -153,16 +148,14 @@ class NdsTouchScreenView(context: Context) : View(context) {
 
     override fun onDetachedFromWindow() {
         NdsBottomFrame.detach(this)
-        MgbaCore.pkNdsTouch(false, 0, 0)
+        cancelTouch()
         super.onDetachedFromWindow()
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        val scale = minOf(w.toFloat() / NdsBottomFrame.W, h.toFloat() / NdsBottomFrame.H)
-        val dw = (NdsBottomFrame.W * scale).toInt()
-        val dh = (NdsBottomFrame.H * scale).toInt()
-        val left = (w - dw) / 2
-        dst.set(left, 0, left + dw, dh)
+        val r = NdsTouchRect.fit(w, h)
+        stylus.rect = r
+        dst.set(r.left, r.top, r.left + r.width, r.top + r.height)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -172,16 +165,22 @@ class NdsTouchScreenView(context: Context) : View(context) {
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (dst.isEmpty) return false
-        val x = ((event.x - dst.left) * NdsBottomFrame.W / dst.width()).toInt()
-        val y = ((event.y - dst.top) * NdsBottomFrame.H / dst.height()).toInt()
+        if (!isShown || dst.isEmpty) { cancelTouch(); return false }
         when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                val inside = x in 0 until NdsBottomFrame.W && y in 0 until NdsBottomFrame.H
-                MgbaCore.pkNdsTouch(inside, x, y)
+            MotionEvent.ACTION_DOWN -> {
+                cancelTouch()
+                return stylus.start(event.getPointerId(0), event.x, event.y)
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> MgbaCore.pkNdsTouch(false, 0, 0)
+            MotionEvent.ACTION_MOVE -> for (i in 0 until event.pointerCount)
+                stylus.move(event.getPointerId(i), event.getX(i), event.getY(i))
+            MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_UP -> stylus.end(event.getPointerId(event.actionIndex))
+            MotionEvent.ACTION_CANCEL -> cancelTouch()
         }
         return true
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (!hasWindowFocus) cancelTouch()
     }
 }
