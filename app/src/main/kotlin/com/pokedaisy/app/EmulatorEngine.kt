@@ -666,6 +666,7 @@ class EmulatorEngine(
     private var vh = 0
 
     private fun loop(rom: File, save: File, resume: File?) {
+        enhancements?.inspect(RomIdentity.enhancementFingerprint(rom))
         SaveBackups.snapshot(save)
         if (!MgbaCore.pkInit(rom.absolutePath, save.absolutePath)) {
             loadError = "mGBA could not load ${rom.name}"
@@ -674,6 +675,7 @@ class EmulatorEngine(
             return
         }
         vw = MgbaCore.pkVideoWidth()
+        enhancements?.coreStarted()
         vh = MgbaCore.pkVideoHeight()
         videoBuf = MgbaCore.pkVideoBuffer()
         onCoreReady?.invoke(vw, vh)
@@ -690,10 +692,15 @@ class EmulatorEngine(
                 SnapshotCache.fileFor(resume).delete()
                 startNotice = tr("Your save changed since you last played here, so the game started from the save file")
             } else {
-                val ok = MgbaCore.pkLoadState(resume.absolutePath)
+                val attempt = enhancementAttempt { MgbaCore.pkLoadState(resume.absolutePath) }
+                val ok = attempt == com.pokedaisy.app.enhancements.EnhancementStateResult.SUCCEEDED
                 Log.i("pokedaisy", "resume state load: $ok")
-                resume.delete()
-                SnapshotCache.fileFor(resume).delete()
+                if (attempt != com.pokedaisy.app.enhancements.EnhancementStateResult.BLOCKED) {
+                    resume.delete()
+                    SnapshotCache.fileFor(resume).delete()
+                } else {
+                    startNotice = tr("Resume kept: enhancements could not pause safely")
+                }
                 if (ok) resumed = resume
             }
             onResumeResult?.invoke(resumed != null)
@@ -784,9 +791,11 @@ class EmulatorEngine(
         var wideFaultReported = false
         var lastWideDraw = 0L
         var frame = 0L
+        var enhancementRecoveryRequired = false
         try {
             while (running) {
                 val frameStart = System.nanoTime()
+                if (softResetFrames == 0) enhancements?.frame()
                 battleInput.tick()
                 val rewindWanted = rewindEntries
                 if (rewindWanted != rewindApplied) {
@@ -828,7 +837,9 @@ class EmulatorEngine(
                 val rewinding = rewindHeld && rewindWanted > 0
                 MgbaCore.pkSetRewinding(rewinding)
                 // TURBO A / B: pressed 2 frames, released 2, in game frames - so FF mashes faster too.
-                val reset = if (softResetFrames > 0) { softResetFrames--; SOFT_RESET_KEYS } else 0
+                val reset = if (softResetFrames > 0 && enhancements?.beforeStateChange() != false) {
+                    softResetFrames--; enhancements?.afterStateChange(); SOFT_RESET_KEYS
+                } else 0
                 var keys = input.frameMask() or reset or (if ((frame++ / 2) % 2 == 0L) input.turboMask else 0)
                 // AUTO-RUN: B flipped while walking on the player's own field (holding it walks) - never in a script, a
                 // battle, a menu screen (B leaves it) or on a bike (the Acro Bike's wheelie is B).
@@ -1239,6 +1250,7 @@ class EmulatorEngine(
                 }
             }
         } catch (t: Throwable) {
+            enhancementRecoveryRequired = t is com.pokedaisy.app.enhancements.EnhancementRecoveryRequired
             Log.e("pokedaisy", "emu loop crashed", t)
             loadError = t.message ?: t.toString()
         } finally {
@@ -1257,8 +1269,10 @@ class EmulatorEngine(
             // The GL thread lets go of the frame buffer before pkDeinit frees it.
             runCatching { onCoreStopping?.invoke() }.onFailure { Log.e("pokedaisy", "core stopping hook failed", it) }
             videoBuf = null
-            runCatching { finishSave() }
+            // Do not run further game frames through a hook whose rollback failed.
+            if (!enhancementRecoveryRequired) runCatching { finishSave() }
             MgbaCore.pkDeinit()
+            enhancements?.coreStopped()
             runCatching { RetroAchievements.onCoreStopped() }
         }
     }
@@ -1319,6 +1333,10 @@ class EmulatorEngine(
             runCatching { job.run(gameCalls, busy) }
                 .onFailure { Log.e("pokedaisy", "field item job failed", it) }
         }
+        // Keep requests queued, including their existing files, until owned hooks can be removed.
+        // The existing sleep/stop timeouts still bound background shutdown.
+        val statePending = pendingSuspend != null || pendingSleep != null || pendingSave >= 0 || pendingLoad >= 0 || pendingUndoLoad
+        if (statePending && enhancements?.beforeStateChange() == false) return
         pendingSuspend?.let { target ->
             pendingSuspend = null
             finishSave()
@@ -1393,7 +1411,7 @@ class EmulatorEngine(
     /** A savestate plus its achievement progress (RetroAchievements.progressFile) and
      * companion data ([onStateSaved]) beside it. */
     private fun saveState(target: File): Boolean {
-        val ok = MgbaCore.pkSaveState(target.absolutePath)
+        val ok = enhancementBoundary { MgbaCore.pkSaveState(target.absolutePath) }
         if (ok) RetroAchievements.afterSaveState(target)
         if (ok) runCatching { onStateSaved?.invoke(target) }.onFailure { Log.w("pokedaisy", "state side data failed", it) }
         return ok
@@ -1401,10 +1419,17 @@ class EmulatorEngine(
 
     /** Loads [source] and puts achievement progress back to where that state had it. */
     private fun loadState(source: File): Boolean {
-        val ok = MgbaCore.pkLoadState(source.absolutePath)
+        val ok = enhancementBoundary { MgbaCore.pkLoadState(source.absolutePath) }
         if (ok) RetroAchievements.afterLoadState(source)
         return ok
     }
+
+    var enhancements: com.pokedaisy.app.enhancements.EnhancementSession? = null
+    private fun enhancementAttempt(action: () -> Boolean): com.pokedaisy.app.enhancements.EnhancementStateResult =
+        enhancements?.stateChange(action) ?: if (action()) com.pokedaisy.app.enhancements.EnhancementStateResult.SUCCEEDED
+        else com.pokedaisy.app.enhancements.EnhancementStateResult.FAILED
+    private fun enhancementBoundary(action: () -> Boolean): Boolean =
+        enhancementAttempt(action) == com.pokedaisy.app.enhancements.EnhancementStateResult.SUCCEEDED
 
     private fun writeThumb(dest: File) {
         val buf = videoBuf ?: return

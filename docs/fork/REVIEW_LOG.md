@@ -124,3 +124,44 @@ integration diff were supplied. Request and response are retained locally as
 
 No review author attribution is added to commits. No ROM assets or credentials were
 sent to the reviewer, and no gameplay hook or save format was changed.
+
+## Phase 3 enhancement review (2026-10-21)
+
+The authorized Claude CLI completed an actual source-only, tool-free review of the
+verification, settings, runtime, session, UI and engine integration. Request and
+response are retained as `build/fork-review/phase3-review*.txt`. It found no issue in
+the bounded full-file hashing, header-spoof denial, empty production registry or
+normal signature/transaction checks. Its findings were independently assessed:
+
+- Accepted: distinguish a blocked state transition from a failed native state call.
+  The runtime now returns BLOCKED/FAILED/SUCCEEDED. Blocked resume keeps its file;
+  ordinary state requests stay queued before touching backups. Normal shutdown
+  still finishes SRAM writes, then destroys the core and discards runtime ownership.
+  Failed rollback prevents additional game frames. No production adapter is active.
+- Accepted: a bridge Error after a partial write must run rollback too. The forward
+  transaction now catches Throwable and a synthetic LinkageError test checks that
+  every attempted site is restored before the game can continue.
+- Accepted: reset should not appear usable for unreadable settings. Its row is now
+  disabled whenever settings are not editable, preserving the original file.
+- Accepted: independent library/game settings instances could overwrite stale
+  choices. Atomic writes now share a lock and compare expected previous values;
+  a two-session test proves a stale reset is rejected without losing the newer setting.
+- Qualified: SHA-1 is used only for catalog recognition because the primary source
+  publishes those complete-image identities. No SHA-256 reference was invented.
+  A production plan must additionally pin SHA-256 and its adapter must verify the
+  actual loaded image. The production registry remains empty. See ROM_VERIFICATION.md.
+- Kept: permission may be recorded for an unknown or unsupported ROM. It grants no
+  capability, cannot turn any unavailable choice on, and leaves all individual
+  choices off. This is explicit in the UI/manual and covered by tests.
+- Documentation not included in the external source bundle was reviewed locally:
+  recognition, companion support and gameplay modifiers are separate claims;
+  no new modifier or native-device certification is stated.
+
+Local UI review also replaced polling with observable state, fixed subtitle clipping,
+and adjusted compact text/column sizing. The initial desktop harness needed to account
+for the existing four pixel-shadow text nodes; final assertions check the rendered
+status and actual session state. All screenshot evidence is synthetic.
+Final local review also uses the existing option picker for future choices with more
+than two values, in accordance with the project menu rules. Those choices remain
+unavailable with the empty production registry. Stale-page recovery instructions
+explicitly reopen a library session or relaunch the game.

@@ -180,6 +180,8 @@ class LibraryActivity : ComponentActivity() {
 
     /** INFO's modal while non-null (internal for the ui-preview harness). */
     internal var gameInfo by mutableStateOf<GameInfo?>(null)
+    private var enhancementDialog by mutableStateOf<com.pokedaisy.app.enhancements.EnhancementSession?>(null)
+    private var enhancementGameName by mutableStateOf("")
 
     /** First-time setup over the library while non-null (internal for the ui-preview harness). */
     internal var setup by mutableStateOf<SetupState?>(null)
@@ -614,6 +616,9 @@ class LibraryActivity : ComponentActivity() {
                     },
                 ) }
 
+            enhancementDialog?.let { session ->
+                com.pokedaisy.app.companion.ui.EnhancementDialog(session, enhancementGameName) { enhancementDialog = null }
+            }
             UpdateDialog(updates, m, small)
 
             // After any update offer, never over setup (this screen isn't composed then).
@@ -909,6 +914,13 @@ class LibraryActivity : ComponentActivity() {
                 add(RomMenuItem(tr("FAVORITE"), Icons.Filled.Star, pixel = com.pokedaisy.app.companion.ui.PixelIcons.star) { setFavorite(rom, true) })
             }
             add(RomMenuItem(tr("INFO"), Icons.Filled.Info, opens = true) { showInfo(rom) })
+            add(RomMenuItem(tr("ENHANCEMENTS"), Icons.Filled.Settings, opens = true) {
+                val session = com.pokedaisy.app.enhancements.EnhancementSession(
+                    com.pokedaisy.app.enhancements.EnhancementSettings(getExternalFilesDir(null) ?: filesDir))
+                enhancementDialog = session
+                enhancementGameName = rom.nameWithoutExtension
+                Thread({ session.inspect(RomIdentity.enhancementFingerprint(rom)) }, "rom-enhancements").start()
+            })
             add(RomMenuItem(tr("RENAME"), Icons.Filled.Edit, opens = true, onClick = onRename))
             add(RomMenuItem(tr("REPLACE COVER"), Icons.Filled.Search, opens = true) { coverError = null; coverPickerFor = rom })
             add(RomMenuItem(tr("SET COVER"), Icons.Filled.Image, opens = true) { pendingCoverTarget = rom; pickCoverImage.launch("image/*") })
@@ -1562,7 +1574,7 @@ class LibraryActivity : ComponentActivity() {
 
     /** Every window over the main screen (pass keys to them, not the launcher). */
     private val libraryDialogOpen
-        get() = pickingSort || renaming != null || deleting != null || gameInfo != null || coverPickerFor != null ||
+        get() = pickingSort || renaming != null || deleting != null || gameInfo != null || enhancementDialog != null || coverPickerFor != null ||
             pendingImport != null || saveLoad != null || backupPick != null || updates.release != null || crashAsk ||
             (expandIntro && !crashAsk) || ssIntroShown
 

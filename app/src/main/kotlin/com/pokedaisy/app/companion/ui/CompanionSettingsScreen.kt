@@ -50,7 +50,7 @@ internal val STATUS_BAR_PLACES = listOf(tk("OFF"), tk("GAME"), tk("COMPANION"))
 
 internal fun statusBarLabel(on: Boolean, onCompanion: Boolean) = STATUS_BAR_PLACES[if (!on) 0 else if (onCompanion) 2 else 1]
 
-internal enum class Page(val title: String) { HOME(tk("SETTINGS")), TABS(tk("TAB BAR")), BUTTONS(tk("GAME BUTTONS")), HOTKEYS(tk("HOTKEYS")), SHADERS(tk("SHADERS")), FIELD_HUD(tk("HUD")), QUICK_MENU(tk("QUICK MENU")), TOUCH(tk("TOUCH CONTROLS")), SPEED(tk("SPEED OPTIONS")), DISPLAY(tk("DISPLAY OPTIONS")), CHEATS(tk("CHEATS")), TWEAKS(tk("TWEAKS")), HELP(tk("HELP")) }
+internal enum class Page(val title: String) { HOME(tk("SETTINGS")), ENHANCEMENTS(tk("ENHANCEMENTS")), TABS(tk("TAB BAR")), BUTTONS(tk("GAME BUTTONS")), HOTKEYS(tk("HOTKEYS")), SHADERS(tk("SHADERS")), FIELD_HUD(tk("HUD")), QUICK_MENU(tk("QUICK MENU")), TOUCH(tk("TOUCH CONTROLS")), SPEED(tk("SPEED OPTIONS")), DISPLAY(tk("DISPLAY OPTIONS")), CHEATS(tk("CHEATS")), TWEAKS(tk("TWEAKS")), HELP(tk("HELP")) }
 
 /** Where BACK from a page goes: SHADERS opens from DISPLAY OPTIONS, the rest from HOME. */
 internal val Page.parent: Page get() = if (this == Page.SHADERS) Page.DISPLAY else Page.HOME
@@ -248,7 +248,7 @@ fun CompanionSettingsScreen(
                             tick++
                         }
                     } + SettingRow(tk("CANCEL"), null) { page = Page.HOME }
-                    Page.HELP -> emptyList()
+                    Page.HELP, Page.ENHANCEMENTS -> emptyList()
                 }
             }
             // A page of its own each time: the rows sit in slots by position, so the row the D-pad had focused on HOME
@@ -260,6 +260,10 @@ fun CompanionSettingsScreen(
                     val context = androidx.compose.ui.platform.LocalContext.current
                     val source = remember { DocsSources.of(context) }
                     DocsReader(ui.docs, m, source, Modifier.fillMaxWidth().weight(1f), searchable = false)
+                } else if (page == Page.ENHANCEMENTS) {
+                    OptionListWindow(m, Modifier.fillMaxWidth().weight(1f)) {
+                        EnhancementPage(settings?.enhancements, Modifier.fillMaxWidth())
+                    }
                 } else if (page == Page.TOUCH && settings != null) {
                     // The preview beside / above the rows; it follows each change (tick).
                     @Suppress("UNUSED_EXPRESSION") tick
@@ -445,6 +449,7 @@ private fun homeRows(
         // SCENE SPEEDS, FF MODE and FF MUSIC: set once and rarely touched, on their own page.
         SettingRow(tk("SPEED OPTIONS"), null, subtitle = "Scene speeds, FF mode and FF music", opensPage = true) { navigate(Page.SPEED) },
         groupTitle(tk("GAMEPLAY")),
+        SettingRow(tk("ENHANCEMENTS"), null, labelBadge = NewFeatures.badge(NewFeatures.ENHANCEMENTS), opensPage = true) { navigate(Page.ENHANCEMENTS) },
         // The game's own switch for random encounters (WildEncounters.kt): ON (the game's rate) or OFF.
         SettingRow(tk("WILD ENCOUNTERS"), if (s.wildEncountersSupported) wildEncountersLabel(s.wildEncounters) else tk("N/A"),
             enabled = s.wildEncountersSupported, subtitle = "In grass, caves and water") {

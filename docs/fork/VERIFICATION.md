@@ -221,3 +221,53 @@ zero issues, and `phase2-website-final.log` records a successful 28-page local b
 
 Single-screen DS playback still shows only the top image; switch mode here requires
 an actual second display. Split and floating companion modes are not implemented.
+
+## Phase 3 enhancement infrastructure verification (2026-10-21)
+
+Implemented on `feature/enhancement-safeguards`, based on Phase 2 handoff commit
+`4f4bd7dda1238960c583c059988483aef723e6bc`. This phase adds verification, settings and
+transaction contracts. No production patch or native enhancement adapter is enabled.
+Catalog recognition, companion coverage and modifier approval remain separate claims
+in [ROM_VERIFICATION.md](ROM_VERIFICATION.md).
+
+| Check | Actual result and local evidence |
+| --- | --- |
+| Phase baseline | Existing 12 RomArchive tests and debug build passed; `phase3-baseline.log`, `phase3-baseline-results/` |
+| Final focused Android tests | 66 passed, zero failures/errors/skips; `phase3-final-tests.log`, `phase3-final-results/` |
+| New enhancement fixtures | 23 tests: whole-image and archive identity, short/oversize/error streams, spoofed headers, per-ROM persistence, corrupt-file preservation, stale writes, default-off gates, transactional rollback, safe-point deferral, state/load/reset boundaries and ownership changes |
+| Existing focused regressions | ROM archive handling, translations, controller routing, companion ownership, Android lower-screen host/touch/focus and GBA turbo |
+| Full Android suite | 2,929 tests: 2,731 passed, six known baseline failures, 192 skipped; `phase3-full-tests.log`, `phase3-full-results/` |
+| Desktop UI | Five scenarios passed: Thor 1240x1080 @ 2.625, wide 1920x1080 @ 2, compact 720x640 @ 2, known-revision fixture, actual shared library dialog; `phase3-ui-final.log` |
+| UI interactions and pixels | Controller selection, touch permission/reset and back checked; known/unknown identities never activate a modifier. Viewed final PNGs in `phase3-ui/` and `docs/manual/shots/enhancements.png`; list scrolls to remaining rows |
+| Android APK | Debug build passed with pinned native cores; no new native memory-write implementation |
+| Manual and translations | Eight manual/search tests passed; 1,261 translation entries, 1,113 used keys, zero issues; local website build passed with 29 pages, nothing deployed |
+| Independent review | Authenticated, tool-free Claude source review completed; accepted fixes and qualified findings recorded in REVIEW_LOG.md |
+| Hardware and assets | Escalated `adb devices` returned an empty list. No ROM, BIOS or user-save assets were accessed; no live gameplay or Thor acceptance claimed |
+
+All log/report paths above are under ignored `build/fork-review/`. The full suite
+finished before the final review fixes; the subsequent focused run verifies those
+changes. Its six failures match the Windows baseline table above. This is not a clean
+full-suite pass. The production registry is intentionally empty, so mock adapter tests
+cannot certify JNI writes, actual game code signatures, safe-point timing or SRAM.
+
+The final corrections preserve a blocked automatic-resume file, keep state requests
+queued until safe, roll back partial writes even when the bridge throws an Error,
+prevent stale settings overwrites, and disable reset for unreadable settings.
+Ordinary core shutdown still finishes SRAM saves; failed rollback prevents further
+game frames. Existing bounded shutdown timeouts remain and need native-adapter tests
+before admitting a real hook. Existing cheats and legacy gameplay options are separate.
+
+### Phase 3 Thor settings acceptance checklist (pending)
+
+1. Keep existing app data while installing the debug build. For a legal DS game,
+   open ENHANCEMENTS from its library menu and companion SETTINGS. Confirm readable
+   status/reasons, visible controller focus, touch selection and scrolling to RESET.
+2. Enable permission, close and relaunch the game, and verify it persists for that
+   exact ROM. The four gameplay modifiers must stay N/A even for a known revision.
+3. Rename or archive the same ROM and verify settings follow its contents. A different
+   revision or modified image must have separate settings and no approved modifier.
+4. Reset one ROM, then relaunch and confirm all its choices are off while another
+   game's permission is unchanged. Unsupported games must retain ordinary playback.
+5. Suspend, resume, use save/load and soft reset with no production hooks. Check
+   ordinary game behavior and existing save files. These real-core checks remain
+   pending; synthetic state-boundary tests do not replace them.

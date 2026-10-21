@@ -107,6 +107,8 @@ This only changes PokeDaisy's words (buttons, labels, hints). Pokémon, move and
 
 ## Closing and restarting
 
+`SETTINGS` > `ENHANCEMENTS` opens this exact ROM's [enhancement settings](enhancements.md), including its verification status and unavailable-feature reasons.
+
 At the very end of SETTINGS, under a line, are two buttons:
 
 - `CLOSE GAME` returns to your library. With `RESUME GAMES` on (top-screen Settings, the default), the game picks up where you left it next time. With it off, anything since your last in-game save is lost, and the confirmation says so.

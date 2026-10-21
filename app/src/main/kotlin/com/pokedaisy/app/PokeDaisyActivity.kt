@@ -971,6 +971,7 @@ class PokeDaisyActivity : Activity() {
      * only writes Prefs, picked up next launch), this also live-applies to the
      * already-running engine/touch controls since the game keeps running. */
     private val companionSettings = object : com.pokedaisy.app.companion.CompanionSettings {
+        override val enhancements get() = if (::engine.isInitialized) engine.enhancements else null
         override val ffMaxSpeed get() = Prefs(this@PokeDaisyActivity).ffMaxSpeed
         override fun setFfMaxSpeed(v: Float) {
             Prefs(this@PokeDaisyActivity).ffMaxSpeed = v
@@ -1594,6 +1595,8 @@ class PokeDaisyActivity : Activity() {
         FfMenuWatch.onLearned = { field, battle -> Prefs(appContext).setFfMenuCallbacks(crc, field, battle) }
 
         engine = EmulatorEngine(input, states!!, ffMusicCache).apply {
+            enhancements = com.pokedaisy.app.enhancements.EnhancementSession(
+                com.pokedaisy.app.enhancements.EnhancementSettings(getExternalFilesDir(null) ?: filesDir))
             hudEngine.value = this
             lateFramesSource = { view.lateFrames }
             this.gba = gba

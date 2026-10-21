@@ -9,6 +9,7 @@ plugins {
 
 val app = rootDir.resolve("../app/src/main/kotlin/com/pokedaisy/app")
 val appSrc = fileTree(app) {
+    include("enhancements/**")
     listOf("companion/data/**", "companion/*.kt", "companion/i18n/**", "MgbaCore.kt", "Prefs.kt", "cheats/Cheats.kt", "GbaControls.kt", "Hotkeys.kt", "InputCodes.kt", "InputProfiles.kt", "NdsTouchInput.kt")
         .forEach { include(it) }
 }

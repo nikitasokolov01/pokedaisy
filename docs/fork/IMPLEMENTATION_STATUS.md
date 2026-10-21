@@ -23,7 +23,13 @@ Architecture: [audit](ARCHITECTURE.md). Independent review: [log](REVIEW_LOG.md)
   - [x] Reserved stylus geometry, pointer ownership, hide/resize/suspend cancellation.
   - [x] Explicit text entry, original theme and Thor/4:3/wide/compact layout checks.
   - [ ] Live Thor display focus, lid sleep, rotation, keyboard and real-game stylus acceptance.
-- [ ] Phase 3: exact ROM verification, capabilities, per-game settings and fail-closed patch lifecycle.
+- [x] Phase 3 infrastructure and synthetic safeguard checks.
+  - [x] Full-content fingerprints and catalog identity checks; header-only matches denied.
+  - [x] Exact-ROM preferences, default-off choices and nondestructive invalid-file handling.
+  - [x] Library/companion enhancement page with unavailable-feature reasons.
+  - [x] Adapter contracts, empty production registry, guarded transactions and state boundaries.
+  - [x] Final focused regression run, rendered UI review and independent static review.
+  - [ ] Native adapter, legal-ROM gameplay and live Thor acceptance; no production hooks registered.
 - [ ] Phase 4: independently verified EXP Share, caps/accessibility, text speed and HM actions.
 - [ ] Phase 5: tracker/rule decisions, transactional challenge snapshots, optional enforcement/dashboard.
 - [ ] Phase 6: expand verified adapters to Platinum, then Gen 5; separate playback/companion/modifiers.
@@ -51,6 +57,29 @@ The existing DS single-screen limitation remains: only the top game image is ava
 integration branch and includes the unmerged Phase 1 prerequisite from PR #1.
 Implementation commit: `7858280e9042943a5a466c7e0e448581965856f3`.
 Local debug APK: `build/fork-review/pokedaisy-phase2-7858280-debug.apk`.
+
+## Phase 3 handoff
+
+Branch `feature/enhancement-safeguards` builds on Phase 2. Full selected-ROM content
+is hashed before the new framework can consider a game. SHA-256 isolates preferences;
+the initial catalog recognizes two complete-image HGSS identities. Recognition grants
+no patch permission. See the separate [ROM matrix](ROM_VERIFICATION.md).
+
+The library and companion share an ENHANCEMENTS page with default-off permission,
+four unavailable feature rows, reasons and reset. Settings use atomic replacement,
+preserve unreadable files and reject stale overwrites. A guarded transaction layer
+checks loaded identity, capability, progression, signatures and safe points; it rolls
+back failed writes and removes owned patches before state transitions. The production
+registry is empty, so this phase enables no new game modifier or native memory write.
+
+Final focused verification passed 66 checks, including 23 new enhancement tests.
+Five desktop UI scenarios, eight manual/search checks, translations and the Android
+APK build passed. The broad suite recorded 2,731 passes, the same six Windows baseline
+failures and 192 skips; final review corrections were checked by the focused rerun.
+Actual independent Claude feedback and its disposition are in [REVIEW_LOG.md](REVIEW_LOG.md).
+No device was connected and no ROM, BIOS or user-save asset was used. Adapter contracts
+were exercised with synthetic memory only. Native hooks and live Thor validation
+remain prerequisites for Phase 4; this is not gameplay certification.
 
 ## Evidence and limitations
 
@@ -95,7 +124,9 @@ routing, touch fallback, actions, tests and documentation.
    claiming a clean local full suite. Keep synthetic rollback coverage intact.
 3. Run the Phase 2 Thor acceptance checklist before calling the hardware gate passed.
    Synthetic input and layout tests do not replace Android firmware/display validation.
-4. Exact ROM verification and safe reset/load behavior precede any new gameplay modifier.
+4. Run the Phase 3 Thor settings checklist. Before adding any Phase 4 modifier, provide
+   independently verified loaded-image identities, native adapters, signatures and
+   legal-ROM reset/load/gameplay evidence. Resolve its product decisions separately.
 
 ## Open product decisions and safety gates
 

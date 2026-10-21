@@ -313,6 +313,11 @@ fun docsShots(all: List<Shot>, bw: Int, bh: Int, bd: Float, tw: Int, th: Int, td
             content
         }),
         Shot("companion-settings", bw, bh, bd, docsCompanion("SETTINGS")),
+        Shot("enhancements", bw, bh, bd, {
+            val session = enhancementPreviewSession()
+            val content: @Composable () -> Unit = { EnhancementPreview(session) }
+            content
+        }),
         Shot("companion-settings-ffspeed", bw, bh, bd, docsCompanion("SETTINGS")) { onNodeWithText("FF SPEED").performClick() },
         Shot("companion-settings-companion", bw, bh, bd, docsCompanion("SETTINGS")) { onNodeWithText("ONE-TAP MOVES").performScrollTo() },
         Shot("companion-settings-tabs", bw, bh, bd, docsCompanion("SETTINGS")) {

@@ -15,6 +15,11 @@ Many rows are on both. They're the same setting, so changing it on one screen ch
 
 ## Top screen Settings
 
+The game's library menu and companion `SETTINGS` also open `ENHANCEMENTS`. Its
+`ALLOW ENHANCEMENTS` permission starts `OFF`; `RESET ENHANCEMENTS` restores that
+ROM's defaults. See [Gameplay enhancements](enhancements.md) for verification and
+unavailable-feature explanations.
+
 ### FF and speed
 
 | Setting | Choices | What it does | More |

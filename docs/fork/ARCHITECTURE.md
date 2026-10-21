@@ -134,3 +134,59 @@ assets. The desktop harness substitutes Compose direction search for Android Vie
 focus search; it is not a test of Android display routing or the Thor's firmware.
 A separate Android layoutlib test exercises the real lower host and MotionEvent path
 with a recording JNI sink. Live Thor acceptance remains a separate hardware gate.
+
+## Phase 3 enhancement infrastructure
+
+`RomFingerprint` reads the entire selected ROM in bounded chunks, including padding,
+and computes SHA-256 and SHA-1 in one pass. `RomIdentity.enhancementFingerprint`
+uses the same archive entry as playback, rejects short/extra bytes and read errors,
+and checks file size/mtime around inspection. Inspection happens on a worker/core
+thread, never in Compose. A header match alone has no enhancement authority.
+
+`RomVerification` recognizes the US revision-0 HGSS SHA-1 identities published by
+[pret/pokeheartgold](https://github.com/pret/pokeheartgold/blob/master/README.md).
+That list establishes identity only. It does not approve an adapter or patch.
+Every future `EnhancementPlan` also pins SHA-256, revision, required core capability,
+progression prerequisites and exact original/replacement bytes. Its adapter must
+attest the pristine image actually loaded by the core, independently of the file
+inspection; a filename or cached header is insufficient. No native adapter or
+production patch plan is registered in Phase 3.
+
+`EnhancementSettings` stores a versioned file per SHA-256 under `enhancements/v1`.
+Permission and individual choices default off. Only valid enum values and a matching
+identity/schema load. Unknown/corrupt files disable their preferences and remain
+untouched, including on reset. Writes sync a same-directory temporary file and
+require atomic replacement; a failed save does not change the in-memory choice.
+Writes from different page sessions share a lock and compare the expected previous
+values, so a stale page reports failure instead of overwriting a newer choice.
+This is independent of the older CRC-keyed input profiles and existing gameplay
+options. No settings migration guesses equivalence between ROM revisions.
+
+`EnhancementSession` exposes the same state to library and companion pages. A
+permission switch alone cannot enable an unavailable feature. The page shows ROM
+identity and per-feature reasons, with a NEW badge and existing menu/focus styling.
+`EnhancementRuntime` is the future adapter boundary: all signatures are checked
+before the first write, sites cannot overlap, writes have readback checks, rollback
+is verified, and a failed verification remains disabled until a new core session.
+An unverified rollback or lost memory ownership requires stopping the core.
+
+The engine invokes this boundary on its core thread before save/load, automatic
+resume and soft reset. State actions defer/fail without executing
+when installed hooks cannot safely be removed. Owned patches are removed before a
+state is saved and revalidated before reapplication after load/reset. Startup
+reinspects the ROM, and normal lifecycle pauses retain the same session. With no
+production plans, per-frame processing returns immediately and playback continues
+without enhancement memory access. Synthetic adapters exercise the transaction
+contract; they do not certify real DS patch locations, native reset behavior or
+external savestates containing third-party modifications.
+
+Blocked state operations remain queued within the existing sleep/stop timeouts;
+blocked automatic resume never deletes its source snapshot. Normal shutdown still
+lets the game's pending SRAM write finish, then destroys the core and discards all
+runtime ownership. A failed patch rollback prevents those extra game frames. This
+does not change native save serialization or certify any future adapter's safe-point
+timing; those require adapter-specific and device tests before registration.
+
+This gate governs the new framework. Existing opt-in cheats and legacy gameplay
+features are not migrated or certified by Phase 3. Phase 4 must audit their
+interactions before registering any new gameplay implementation.
